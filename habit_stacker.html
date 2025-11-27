@@ -191,7 +191,6 @@
         
         /**
          * Simulates upgrading/downgrading the user's account.
-         * This is called AFTER the simulated payment/confirmation.
          */
         window.performProUpgrade = async () => {
             if (!isAuthReady || !db) {
@@ -212,7 +211,7 @@
         };
 
         /**
-         * Handles downgrading the user's account (no payment simulation needed).
+         * Handles downgrading the user's account.
          */
         window.performFreeDowngrade = async () => {
              if (!isAuthReady || !db) {
@@ -287,9 +286,14 @@
 
         /**
          * Adds a new stack to Firestore. Check for limits first.
+         * ADDED SAFETY CHECK HERE: if (!isAuthReady || !db || !auth.currentUser)
          */
         window.addStackToDB = async (trigger, action) => {
-            if (!isAuthReady || !db) return console.error("Database not ready.");
+            if (!isAuthReady || !db || !auth.currentUser) {
+                showStackMessage("Waiting for database connection. Please try again in a moment.", 'error');
+                console.warn("Attempted to add stack before auth was ready.");
+                return false; 
+            }
             
             if (window.userAccountType === 'free' && window.habitStacks.length >= MAX_FREE_STACKS) {
                 showModal('Stack Limit Reached', `<p class="text-red-300 font-bold">Free accounts are limited to ${MAX_FREE_STACKS} stacks.</p><p>Please delete an existing stack or upgrade to PRO to continue adding more.</p>`);
@@ -496,12 +500,14 @@
             const currentHabitInput = document.getElementById('currentHabit');
             const newHabitInput = document.getElementById('newHabit');
             const stackMessage = document.getElementById('stackMessage');
+            const stacksContainer = document.getElementById('stacksContainer');
+            const emptyMessage = document.getElementById('emptyMessage');
 
             if (!isPro && sortedStacks.length >= MAX_FREE_STACKS) {
                 generateButton.disabled = true;
                 currentHabitInput.disabled = true;
                 newHabitInput.disabled = true;
-                stackMessage.classList.remove('hidden');
+                stackMessage.classList.remove('hidden', 'bg-cyan-900', 'border-cyan-700', 'text-cyan-300');
                 stackMessage.classList.add('bg-red-900', 'border-red-700', 'text-red-300');
                 stackMessage.innerHTML = `<span class="font-bold">Upgrade to PRO!</span> Free accounts are limited to ${MAX_FREE_STACKS} stacks. Delete a stack or click the 'Go PRO' button above for more.`;
             } else {
@@ -591,7 +597,8 @@
                 }
                 
                 generateButton.disabled = true;
-                const success = await window.addStackToDB(trigger, action);
+                // Add the safety check here: if addStackToDB returns false, keep inputs/button enabled.
+                const success = await window.addStackToDB(trigger, action); 
                 generateButton.disabled = false;
                 
                 if (success) {
