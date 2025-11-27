@@ -20,27 +20,6 @@
             padding: 1.5rem;
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
-        .btn-primary {
-            background-color: #06b6d4; /* Teal */
-            transition: background-color 0.2s;
-        }
-        .btn-primary:hover {
-            background-color: #0891b2;
-        }
-        /* Simple spinning loader style */
-        .spinner {
-            border: 4px solid rgba(255, 255, 255, 0.3);
-            border-top: 4px solid #fff;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: auto;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
     </style>
 </head>
 <body class="hero-bg text-white">
@@ -51,53 +30,56 @@
                 <svg class="w-8 h-8 mr-2 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                 Stack & Grow
             </h1>
-            <p id="user-id-display" class="text-xs text-gray-300 mt-1">User ID: Connecting...</p>
-            <!-- PRO/Ad Space: Non-functional button for visual representation -->
+            <p id="user-id-display" class="text-xs text-gray-300 mt-1">Status: Initializing...</p>
+            
+            <!-- PRO/Ad Space: Non-functional button -->
             <button class="w-full mt-4 py-3 bg-yellow-400 text-gray-900 font-bold rounded-lg shadow-lg hover:bg-yellow-300 transition duration-150">
                 Go PRO! Unlock Streaks for $1.00/mo (Ad-Free)
             </button>
         </header>
 
-        <!-- Dynamic Status/Loading Overlay (Visible while connecting to Firebase) -->
-        <div id="status-area" class="p-4 bg-yellow-600 text-yellow-900 rounded-lg shadow-md mb-6 text-center">
-            <div class="spinner mb-2"></div>
+        <!-- Dynamic Status/Loading Area -->
+        <div id="status-area" class="p-4 bg-yellow-600 text-white rounded-lg shadow-md mb-6 text-center">
+            <div id="loading-spinner" class="w-8 h-8 border-4 border-t-4 border-gray-200 border-t-white rounded-full animate-spin mx-auto mb-2"></div>
             <p id="loading-message" class="text-lg font-semibold">Connecting to database...</p>
             <div id="error-message" class="hidden mt-2 p-1 bg-red-800 text-white text-xs rounded-lg"></div>
         </div>
 
-        <!-- Main App Content (Hidden until connection is successful) -->
-        <div id="main-app-content" class="hidden">
+        <!-- Main App Content (Always visible now, but functions rely on DataService) -->
+        <div id="main-app-content">
             
-            <!-- 1. Generate New Stack -->
+            <!-- 1. Generate New Stack (Free Feature) -->
             <section class="mb-8">
-                <h2 class="text-2xl font-bold mb-4">1. Generate New Stack</h2>
+                <h2 class="text-2xl font-bold mb-4">1. Generate New Stack (Free)</h2>
                 <div class="card space-y-4">
                     <input type="text" id="habit-cue" placeholder="A: After I finish my coffee..." class="w-full px-4 py-3 bg-gray-700 border-none rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-500">
                     <input type="text" id="habit-action" placeholder="B: I will meditate for 5 minutes." class="w-full px-4 py-3 bg-gray-700 border-none rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-500">
-                    <button onclick="saveNewHabit()" class="w-full btn-primary text-gray-900 font-bold py-3 rounded-lg flex items-center justify-center transition duration-150">
+                    <button onclick="saveNewHabit()" class="w-full bg-cyan-600 text-gray-900 font-bold py-3 rounded-lg flex items-center justify-center transition duration-150 hover:bg-cyan-700">
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                         Generate & Start Tracking
                     </button>
                 </div>
             </section>
 
-            <!-- 2. Tracking Dashboard (Metrics) -->
+            <!-- 2. Tracking Dashboard (PRO Feature) -->
             <section class="mb-8">
-                <h2 class="text-2xl font-bold mb-4">2. Tracking Dashboard</h2>
-                <div id="tracking-dashboard" class="card text-center text-gray-400 p-8">
-                    Loading habit data...
+                <h2 class="text-2xl font-bold mb-4">2. Tracking Dashboard (PRO Feature)</h2>
+                <div id="tracking-dashboard" class="card text-center text-gray-400 p-8 flex flex-col items-center justify-center h-48 border-2 border-dashed border-yellow-500 bg-gray-800/50">
+                    <svg class="w-10 h-10 text-yellow-500 mb-2" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 11.75a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5a.75.75 0 01.75-.75zm0-8.5a9.75 9.75 0 100 19.5 9.75 9.75 0 000-19.5zM12 21a8.25 8.25 0 110-16.5 8.25 8.25 0 010 16.5zm-1-7.25a1 1 0 012 0v.5a1 1 0 01-2 0v-.5z"/></svg>
+                    <p class="text-xl font-bold text-yellow-500">PRO FEATURE LOCKED</p>
+                    <p class="text-sm text-gray-400 mt-1">Unlock detailed streak and completion metrics by going PRO.</p>
                 </div>
             </section>
 
-            <!-- 3. Daily Habit Checklist (The included third section) -->
+            <!-- 3. Daily Habit Checklist (Free Feature) -->
             <section class="mb-8">
-                <h2 class="text-2xl font-bold mb-4">3. Daily Habit Checklist</h2>
+                <h2 class="text-2xl font-bold mb-4">3. Daily Habit Checklist (Free)</h2>
                 <div id="habit-checklist" class="card space-y-3">
-                    <p class="text-gray-400 text-center" id="checklist-message">No habits found. Generate your first stack above!</p>
+                    <p class="text-gray-400 text-center p-4" id="checklist-message">Loading habits...</p>
                 </div>
             </section>
             
-            <!-- Static Ad Space (Non-functional banner for visual representation) -->
+            <!-- Static Ad Space (Ad-Supported Banner) -->
             <div class="p-3 bg-gray-800 text-center text-sm font-semibold text-gray-400 rounded-lg shadow-lg border border-gray-700">
                 [Ad] Slice. Banck Acc. Banner Ad Space Here
             </div>
@@ -105,42 +87,35 @@
         </div>
 
         <footer class="text-center text-xs text-gray-500 mt-12">
-            © 2025 Stack & Grow. Data saved with Firebase Firestore.
+            © 2025 Stack & Grow.
         </footer>
     </div>
 
-    <!-- Firebase Imports and Logic -->
+    <!-- Data Service and Initialization Logic -->
     <script type="module">
         // --- Canvas Global Variables (MANDATORY) ---
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const firebaseConfigRaw = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        // --- Firebase SDK Imports ---
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, query, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        setLogLevel('debug'); // Enable detailed console logging for debugging connection issues!
-
+        
         // --- Global State ---
         let db = null;
-        let auth = null;
-        let userId = null;
+        let userId = 'demo-user-123'; // Default for offline mode
+        let isOnline = false;
 
         // --- UI Element References ---
         const statusArea = document.getElementById('status-area');
         const loadingMessage = document.getElementById('loading-message');
         const errorMessage = document.getElementById('error-message');
         const userIdDisplay = document.getElementById('user-id-display');
-        const mainAppContent = document.getElementById('main-app-content');
-        const dashboard = document.getElementById('tracking-dashboard');
+        const loadingSpinner = document.getElementById('loading-spinner');
         const checklist = document.getElementById('habit-checklist');
-        const checklistMessage = document.getElementById('checklist-message');
         
         // --- Utility Functions ---
         const updateStatus = (message, isError = false) => {
             loadingMessage.textContent = message;
+            loadingSpinner.classList.toggle('hidden', !isError); // Hide spinner on final status
+            
             if (isError) {
                 errorMessage.textContent = message;
                 errorMessage.classList.remove('hidden');
@@ -148,123 +123,146 @@
                 console.error("APP ERROR:", message);
             } else {
                 errorMessage.classList.add('hidden');
-                statusArea.className = 'hidden'; // Hide status area on success
+                // Use a green/success color for the final status message before hiding
+                statusArea.className = 'p-4 bg-green-700 text-white rounded-lg shadow-md mb-6 text-center';
+                setTimeout(() => statusArea.classList.add('hidden'), 2000); // Hide status area after 2 seconds
             }
         };
 
-        // --- Firebase Data Interaction ---
+        // --- Data Service Abstraction (Handles both Firestore and Local Storage) ---
+        
+        const DataService = {
+            listeners: [],
+            
+            // Simulates onSnapshot: calls listeners immediately and on data change
+            notifyListeners(data) {
+                this.listeners.forEach(listener => listener(data));
+            },
 
-        function loadHabits() {
-            if (!db || !userId) return;
+            // Firestore Implementation (if online)
+            firestoreLoad(db) {
+                const { getFirestore, collection, query, onSnapshot, setLogLevel } = window.FirebaseFirestore;
+                setLogLevel('debug'); // Enable detailed console logging
+                const habitsColRef = collection(db, `artifacts/${appId}/public/data/habits`);
+                const q = query(habitsColRef);
 
-            // Public data collection path: /artifacts/{appId}/public/data/habits
-            const habitsColRef = collection(db, `artifacts/${appId}/public/data/habits`);
-            const q = query(habitsColRef);
-
-            onSnapshot(q, (snapshot) => {
-                const habits = [];
-                snapshot.forEach((doc) => {
-                    habits.push({ id: doc.id, ...doc.data() });
+                onSnapshot(q, (snapshot) => {
+                    const habits = [];
+                    snapshot.forEach((doc) => {
+                        habits.push({ id: doc.id, ...doc.data() });
+                    });
+                    this.notifyListeners(habits);
+                }, (error) => {
+                    updateStatus(`Failed to read habits (Security Rule issue likely): ${error.message}`, true);
                 });
-                
-                // Sort habits by creation time (simulating orderBy)
-                habits.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+            },
 
-                renderHabits(habits);
-            }, (error) => {
-                // Fails if security rules block READ access
-                updateStatus(`Failed to read habits (Security Rule issue likely): ${error.message}`, true);
-            });
-        }
+            // Local Storage Implementation (if offline)
+            localStorageLoad() {
+                const key = `habits_${userId}`;
+                const raw = localStorage.getItem(key);
+                const habits = raw ? JSON.parse(raw) : [];
+                this.notifyListeners(habits);
+                
+                // Set up a custom check for localStorage changes (not real-time, but better than nothing)
+                window.addEventListener('storage', (event) => {
+                    if (event.key === key) {
+                        const updatedHabits = event.newValue ? JSON.parse(event.newValue) : [];
+                        this.notifyListeners(updatedHabits);
+                    }
+                });
+            },
+            
+            // Public method to start listening
+            load(callback) {
+                this.listeners.push(callback);
+                if (isOnline) {
+                    this.firestoreLoad(db);
+                } else {
+                    this.localStorageLoad();
+                }
+            },
+            
+            // Public method to save/update data
+            async save(habitData) {
+                if (isOnline) {
+                    const { doc, setDoc, collection } = window.FirebaseFirestore;
+                    const habitsColRef = collection(db, `artifacts/${appId}/public/data/habits`);
+                    const docRef = habitData.id ? doc(habitsColRef, habitData.id) : doc(habitsColRef);
+                    await setDoc(docRef, {...habitData, createdAt: habitData.createdAt || Date.now() }, { merge: true });
+                } else {
+                    const key = `habits_${userId}`;
+                    let habits = JSON.parse(localStorage.getItem(key) || '[]');
+                    
+                    if (habitData.id) {
+                        // Update existing habit
+                        const index = habits.findIndex(h => h.id === habitData.id);
+                        if (index > -1) {
+                            habits[index] = { ...habits[index], ...habitData };
+                        }
+                    } else {
+                        // Add new habit
+                        habitData.id = `local_${Date.now()}`;
+                        habitData.createdAt = Date.now();
+                        habits.push(habitData);
+                    }
+                    
+                    localStorage.setItem(key, JSON.stringify(habits));
+                    this.notifyListeners(habits); // Manually trigger update for local storage mode
+                }
+            }
+        };
+
+        // --- Public Global Functions (Called from HTML) ---
 
         window.saveNewHabit = async function() {
-            if (!db || !userId) {
-                updateStatus('Database is not connected. Cannot save.', true);
-                return;
-            }
-
             const cueInput = document.getElementById('habit-cue');
             const actionInput = document.getElementById('habit-action');
             const cue = cueInput.value.trim();
             const action = actionInput.value.trim();
 
             if (!cue || !action) {
-                // Using a non-alert message box logic here
                 updateStatus('Please enter both the cue (A) and the action (B).', true);
-                setTimeout(() => updateStatus('Connected and ready to track!', false), 3000); // Clear message after 3s
+                setTimeout(() => statusArea.classList.add('hidden'), 3000);
                 return;
             }
 
             try {
-                const habitsColRef = collection(db, `artifacts/${appId}/public/data/habits`);
-                
-                await setDoc(doc(habitsColRef), {
-                    userId: userId,
-                    cue: cue,
-                    action: action,
-                    completedToday: false,
-                    createdAt: Date.now()
-                });
+                await DataService.save({ userId: userId, cue: cue, action: action, completedToday: false });
 
                 cueInput.value = '';
                 actionInput.value = '';
-                updateStatus('Stack added successfully!', false);
-                setTimeout(() => updateStatus('Connected and ready to track!', false), 3000);
+                updateStatus(isOnline ? 'Stack added successfully (Online)!' : 'Stack added successfully (Offline)!');
             } catch (error) {
-                // Fails if security rules block WRITE access
-                updateStatus(`Failed to save habit (Security Rule issue likely): ${error.message}`, true);
+                updateStatus(`Failed to save habit: ${error.message}`, true);
             }
         }
 
         window.toggleHabitCompletion = async function(checkbox) {
-            if (!db || !userId) {
-                updateStatus('Database is not connected. Cannot update.', true);
-                return;
-            }
-
             const habitId = checkbox.dataset.habitId;
             const isChecked = checkbox.checked;
 
             try {
-                const docRef = doc(db, `artifacts/${appId}/public/data/habits/${habitId}`);
-                await setDoc(docRef, { completedToday: isChecked }, { merge: true });
+                await DataService.save({ id: habitId, completedToday: isChecked });
             } catch (error) {
-                updateStatus(`Failed to update habit (Security Rule issue likely): ${error.message}`, true);
+                updateStatus(`Failed to update habit: ${error.message}`, true);
                 checkbox.checked = !isChecked; // Revert state on failure
             }
         }
         
         // --- UI Rendering ---
-
         function renderHabits(habits) {
-            checklist.innerHTML = ''; // Clear previous items
+            checklist.innerHTML = '';
+            
+            // Sort habits by creation time
+            habits.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
 
             if (habits.length === 0) {
-                dashboard.innerHTML = `<p class="text-base font-semibold text-gray-300">Start by creating your first habit stack above!</p>`;
-                checklistMessage.classList.remove('hidden');
+                checklist.innerHTML = `<p class="text-gray-400 text-center p-4">No stacks yet. Create your first stack above!</p>`;
                 return;
             }
-            
-            checklistMessage.classList.add('hidden');
-            
-            // Render Dashboard (Section 2)
-            const totalStacks = habits.length;
-            const completedToday = habits.filter(h => h.completedToday).length;
 
-            dashboard.innerHTML = `
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <p class="text-4xl font-extrabold text-cyan-400">${totalStacks}</p>
-                        <p class="text-gray-300 text-sm mt-1">Total Stacks</p>
-                    </div>
-                    <div>
-                        <p class="text-4xl font-extrabold text-teal-400">${completedToday}</p>
-                        <p class="text-gray-300 text-sm mt-1">Completed Today</p>
-                    </div>
-                </div>
-            `;
-
-            // Render Checklist (Section 3)
+            // Render Checklist (Section 3 - Free)
             habits.forEach(habit => {
                 const checked = habit.completedToday ? 'checked' : '';
                 const item = document.createElement('div');
@@ -281,58 +279,83 @@
                 `;
                 checklist.appendChild(item);
             });
+            
+            // Dashboard (Section 2) remains locked in this Fremium version, no change needed here.
         }
 
+        // --- Initialization Logic ---
 
-        // --- Initialization and Authentication (Core Fix) ---
+        async function initializeApp() {
+            updateStatus('Initializing application...');
+            let firebaseConfig = {};
 
-        async function initializeAppAndAuth() {
-            updateStatus('Initializing Firebase services...');
             try {
-                // Initialize Firebase App and Services
-                const app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
+                firebaseConfig = JSON.parse(firebaseConfigRaw);
+            } catch (e) {
+                console.warn("Could not parse firebaseConfig. Proceeding in Offline Mode.");
+            }
 
-                // Ensure session persistence
-                await setPersistence(auth, browserSessionPersistence);
+            // Check if Firebase configuration is valid (specifically looking for a projectId)
+            if (firebaseConfig.projectId) {
+                isOnline = true;
+                loadingMessage.textContent = 'Attempting connection to Firebase...';
 
-                // Sign in logic
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
-                }
-
-                // Wait for the auth state change to confirm sign-in
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        
-                        // Show all App Content and start data flow
-                        mainAppContent.classList.remove('hidden');
-                        updateStatus('Connected and ready to track!', false);
-                        loadHabits();
-
-                        userIdDisplay.textContent = `User ID: ${userId.substring(0, 8)}...`;
-                        
+                try {
+                    // --- Dynamic Firebase SDK Imports ---
+                    window.FirebaseApp = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
+                    window.FirebaseAuth = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
+                    window.FirebaseFirestore = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                    
+                    const { initializeApp: initApp } = window.FirebaseApp;
+                    const { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserSessionPersistence } = window.FirebaseAuth;
+                    const { getFirestore } = window.FirebaseFirestore;
+                    
+                    // 1. Init
+                    const app = initApp(firebaseConfig);
+                    db = getFirestore(app);
+                    const auth = getAuth(app);
+                    
+                    // 2. Auth setup
+                    await setPersistence(auth, browserSessionPersistence);
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
                     } else {
-                        // User is NOT authenticated after trying to sign in.
-                        userId = 'Auth Failed';
-                        userIdDisplay.textContent = 'Status: Auth Failed';
-                        updateStatus('Authentication failed. Check your Firebase console for login errors.', true);
-                        // Still show the app, but data operations will likely fail due to security rules
-                        mainAppContent.classList.remove('hidden');
+                        await signInAnonymously(auth);
                     }
-                });
 
-            } catch (error) {
-                // Catches errors during initializeApp, setPersistence, or signIn calls
-                updateStatus(`CRITICAL INIT ERROR: ${error.message}. Please check your firebaseConfig.`, true);
+                    // 3. Wait for Auth confirmation
+                    onAuthStateChanged(auth, (user) => {
+                        if (user) {
+                            userId = user.uid;
+                            userIdDisplay.textContent = `User ID: ${userId.substring(0, 8)}... (Online)`;
+                            updateStatus('Connected to Firebase Firestore!');
+                            DataService.load(renderHabits);
+                        } else {
+                            isOnline = false; // Fallback if auth fails
+                            userIdDisplay.textContent = 'Status: Auth Failed (Offline)';
+                            updateStatus('Authentication Failed. Switching to Offline Mode.', true);
+                            DataService.load(renderHabits);
+                        }
+                    });
+
+                } catch (error) {
+                    // Critical error during Firebase SDK loading or initialization
+                    isOnline = false;
+                    userIdDisplay.textContent = 'Status: Firebase Error (Offline)';
+                    updateStatus(`CRITICAL INIT ERROR: ${error.message}. Switching to Offline Mode.`, true);
+                    console.error("Firebase Critical Error:", error);
+                    DataService.load(renderHabits);
+                }
+            } else {
+                // Config missing or invalid (the problem you were having)
+                isOnline = false;
+                userIdDisplay.textContent = 'User ID: demo-user (Offline)';
+                updateStatus('Running in Offline Demo Mode (Database Config Missing).');
+                DataService.load(renderHabits);
             }
         }
 
-        window.onload = initializeAppAndAuth;
+        window.onload = initializeApp;
     </script>
 </body>
 </html>
