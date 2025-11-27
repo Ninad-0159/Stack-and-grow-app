@@ -1,0 +1,624 @@
+# Stack-and-grow-app
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stack & Grow - Ad-Supported Freemium Dashboard</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        html { font-family: 'Inter', sans-serif; scroll-behavior: smooth; }
+        .hero-bg-pro {
+            background-image: linear-gradient(to right bottom, #06b6d4, #3b82f6); /* Cyan to Blue */
+        }
+        .hero-bg-free {
+            background-image: linear-gradient(to right bottom, #f0f9ff, #dbeafe); /* Light Blue gradient */
+        }
+        .tracker-card { transition: all 0.3s ease; }
+        .tracker-complete { background-color: #ecfdf5; border-color: #10b981; } 
+        .pro-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(5px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.75rem; /* rounded-xl */
+            text-align: center;
+            cursor: pointer;
+            z-index: 10;
+        }
+        .ad-container {
+            border: 2px dashed #fcd34d; /* Amber 400 */
+            background-color: #fffbeb; /* Amber 50 */
+            color: #b45309; /* Amber 800 */
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-teal': '#14b8a6', /* Teal 500 */
+                        'primary-blue': '#3b82f6', /* Blue 500 */
+                        'accent-cyan': '#06b6d4', /* Cyan 500 */
+                        'bg-light': '#f9fafb',
+                        'card-white': '#ffffff',
+                    },
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-bg-light text-gray-800 antialiased">
+
+    <!-- Firebase Imports and Setup (MANDATORY) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, addDoc, deleteDoc, updateDoc, onSnapshot, collection, query, setDoc, getDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        setLogLevel('Debug');
+
+        // CONSTANTS
+        const MAX_FREE_STACKS = 5; 
+
+        // Global Firebase Variables
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db, auth, userId = null;
+        let isAuthReady = false;
+        window.userAccountType = 'free'; // Default state
+
+        if (firebaseConfig) {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+
+            // 1. Authentication Setup
+            onAuthStateChanged(auth, async (user) => {
+                const userIdDisplay = document.getElementById('userIdDisplay');
+                if (user) {
+                    userId = user.uid;
+                    isAuthReady = true;
+                    userIdDisplay.textContent = userId;
+                    await loadUserAccountType(); // Load status first
+                    startHabitListener(); // Then start listening for stacks
+                } else {
+                    try {
+                        if (initialAuthToken) {
+                            await signInWithCustomToken(auth, initialAuthToken);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (error) {
+                        console.error("Firebase Sign-in Failed:", error);
+                        isAuthReady = true; 
+                        userIdDisplay.textContent = 'Auth Failed';
+                    }
+                }
+            });
+        } else {
+            console.error("Firebase config is missing. Data persistence disabled.");
+        }
+
+        // --- Firestore Operations ---
+
+        function getUserDataDocRef() {
+            const currentUserId = auth.currentUser?.uid || 'anonymous';
+            return doc(db, `artifacts/${appId}/user_data/${currentUserId}`);
+        }
+
+        function getStacksCollectionRef() {
+            const currentUserId = auth.currentUser?.uid || 'anonymous';
+            return collection(db, `artifacts/${appId}/users/${currentUserId}/stacks`);
+        }
+
+        /**
+         * Loads the user's account type from Firestore.
+         */
+        async function loadUserAccountType() {
+            if (!isAuthReady || !db) return;
+            try {
+                const docRef = getUserDataDocRef();
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    window.userAccountType = docSnap.data().accountType || 'free';
+                } else {
+                    // Set initial account type if document doesn't exist
+                    await setDoc(docRef, { accountType: 'free' });
+                    window.userAccountType = 'free';
+                }
+                updateAppTheme();
+            } catch (error) {
+                console.error("Error loading account type:", error);
+            }
+        }
+        
+        /**
+         * Simulates upgrading/downgrading the user's account.
+         */
+        window.toggleProStatus = async () => {
+            if (!isAuthReady || !db) return console.error("Database not ready.");
+
+            const newType = window.userAccountType === 'free' ? 'pro' : 'free';
+            try {
+                const docRef = getUserDataDocRef();
+                await setDoc(docRef, { accountType: newType }, { merge: true });
+                window.userAccountType = newType;
+                updateAppTheme();
+                window.renderStacks(); // Re-render everything with new status
+            } catch (error) {
+                console.error("Error updating PRO status:", error);
+            }
+        };
+
+        // UI function to update colors based on status
+        function updateAppTheme() {
+            const hero = document.getElementById('heroSection');
+            const toggleButton = document.getElementById('toggleProButton');
+            
+            hero.classList.remove('hero-bg-free', 'hero-bg-pro');
+            
+            if (window.userAccountType === 'pro') {
+                hero.classList.add('hero-bg-pro');
+                toggleButton.textContent = 'Downgrade to Free';
+                toggleButton.classList.remove('bg-yellow-500');
+                toggleButton.classList.add('bg-gray-500', 'hover:bg-gray-600');
+            } else {
+                hero.classList.add('hero-bg-free');
+                toggleButton.textContent = 'Go PRO! Unlock Streaks (Ad-Free)';
+                toggleButton.classList.remove('bg-gray-500', 'hover:bg-gray-600');
+                toggleButton.classList.add('bg-yellow-500', 'hover:bg-yellow-600');
+            }
+        }
+
+
+        // Listen for real-time changes
+        function startHabitListener() {
+            if (!isAuthReady || !db || !auth.currentUser) return;
+
+            const stacksQuery = query(getStacksCollectionRef());
+
+            onSnapshot(stacksQuery, (snapshot) => {
+                const fetchedStacks = [];
+                snapshot.forEach(doc => {
+                    fetchedStacks.push({ id: doc.id, ...doc.data() });
+                });
+                window.habitStacks = fetchedStacks; 
+                window.renderStacks(); 
+            }, (error) => {
+                console.error("Error listening to stacks:", error);
+            });
+        }
+
+        /**
+         * Adds a new stack to Firestore. Check for limits first.
+         */
+        window.addStackToDB = async (trigger, action) => {
+            if (!isAuthReady || !db) return console.error("Database not ready.");
+            
+            if (window.userAccountType === 'free' && window.habitStacks.length >= MAX_FREE_STACKS) {
+                return false; 
+            }
+
+            try {
+                await addDoc(getStacksCollectionRef(), {
+                    trigger: trigger,
+                    action: action,
+                    createdAt: new Date().getTime(),
+                    isCompleteToday: false, 
+                    streakCount: 0,         
+                    lastCompletedDate: null   
+                });
+                return true; 
+            } catch (error) {
+                console.error("Error adding document:", error);
+                return false;
+            }
+        };
+
+        /**
+         * Deletes a stack from Firestore.
+         */
+        window.deleteStackFromDB = async (id) => {
+            if (!isAuthReady || !db) return console.error("Database not ready.");
+            try {
+                const stackDocRef = doc(getStacksCollectionRef(), id);
+                await deleteDoc(stackDocRef);
+            } catch (error) {
+                console.error("Error deleting document:", error);
+            }
+        };
+
+        /**
+         * Updates the habit's completion status and streak.
+         */
+        window.toggleHabitCompletion = async (stack) => {
+            if (!isAuthReady || !db) return console.error("Database not ready.");
+            
+            const docRef = doc(getStacksCollectionRef(), stack.id);
+            const today = new Date().toISOString().split('T')[0];
+            
+            let newStreak = stack.streakCount || 0;
+            let newLastCompletedDate = stack.lastCompletedDate;
+            let newIsCompleteToday = !stack.isCompleteToday;
+
+            if (newIsCompleteToday) {
+                const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+                
+                if (stack.lastCompletedDate === yesterday || stack.lastCompletedDate === null) {
+                    newStreak++;
+                } else if (stack.lastCompletedDate !== today) {
+                    newStreak = 1;
+                }
+                newLastCompletedDate = today;
+
+            } else {
+                if (stack.lastCompletedDate === today) {
+                    newStreak = Math.max(0, newStreak - 1);
+                    newLastCompletedDate = null;
+                }
+            }
+
+            try {
+                await updateDoc(docRef, {
+                    isCompleteToday: newIsCompleteToday,
+                    streakCount: newStreak,
+                    lastCompletedDate: newLastCompletedDate
+                });
+            } catch (error) {
+                console.error("Error updating document:", error);
+            }
+        };
+
+        window.habitStacks = [];
+    </script>
+    
+    <!-- Header/Navigation -->
+    <header class="bg-card-white shadow-md sticky top-0 z-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
+            <div class="flex items-center">
+                 <svg class="w-8 h-8 mr-2 text-primary-teal" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                <a href="#" class="text-2xl font-extrabold text-primary-teal tracking-wide">Stack & Grow</a>
+            </div>
+             <p class="text-xs text-gray-500 font-medium truncate">User ID: <span id="userIdDisplay" class="font-mono text-primary-blue">Loading...</span></p>
+        </div>
+    </header>
+
+    <main>
+        <!-- Hero & Generator Section -->
+        <section id="heroSection" class="hero-bg-free py-12 md:py-16 border-b-4 border-primary-blue/50 transition duration-500">
+            <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                <h1 class="text-3xl sm:text-4xl font-extrabold mb-4 text-gray-900 leading-tight">
+                    <span id="welcomeMessage">Start Building Your Routine!</span>
+                </h1>
+                
+                <!-- PRO Toggle Button -->
+                <button id="toggleProButton" onclick="window.toggleProStatus()" class="mb-8 font-bold px-6 py-2 rounded-full text-white shadow-xl transition duration-300 transform hover:scale-105">
+                    Go PRO! Unlock Streaks (Ad-Free)
+                </button>
+                
+                <!-- Habit Stacking Tool Card -->
+                <div class="bg-card-white p-6 sm:p-8 rounded-3xl shadow-2xl ring-4 ring-primary-blue/10">
+                    <h2 class="text-2xl font-bold mb-6 text-gray-800">1. Generate New Stack</h2>
+                    <div class="space-y-4 sm:space-y-6">
+                        <div>
+                            <input type="text" id="currentHabit" placeholder="A: After I finish my coffee..." class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-primary-blue focus:border-primary-blue transition duration-300 shadow-sm" required>
+                        </div>
+                        <div>
+                            <input type="text" id="newHabit" placeholder="B: I will meditate for 5 minutes." class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-primary-blue focus:border-primary-blue transition duration-300 shadow-sm" required>
+                        </div>
+                    </div>
+
+                    <!-- Button -->
+                    <button id="generateStackButton" class="mt-6 w-full sm:w-2/3 bg-primary-teal text-white font-semibold px-8 py-3 rounded-xl shadow-lg hover:bg-teal-600 transition duration-300 flex items-center justify-center mx-auto disabled:opacity-50 disabled:cursor-not-allowed">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                        Generate & Start Tracking
+                    </button>
+                    
+                    <!-- Notification/Message Box -->
+                    <div id="stackMessage" class="mt-4 p-3 bg-blue-100 border border-blue-300 text-blue-800 rounded-xl hidden text-left font-medium text-sm">
+                    </div>
+                </div>
+                
+                <!-- AD PLACEMENT 1 (Top Banner Ad - FREE ONLY) -->
+                <div id="adBannerTop" class="hidden mt-8 w-full max-w-lg mx-auto p-4 rounded-xl shadow-md text-center ad-container">
+                    <p class="text-xs font-semibold uppercase mb-1">Advertisement</p>
+                    <p class="text-sm font-bold">🎯 Boost Your Productivity with the 'FocusFlow' App!</p>
+                    <p class="text-xs mt-1">Click here to get 30% off your first month.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Stacks List and Tracking Dashboard -->
+        <section id="myStacks" class="py-12 md:py-16">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                
+                <!-- Tracking Dashboard (Freemium Gated) -->
+                <h2 class="text-3xl font-bold mb-6 text-gray-900">2. Tracking Dashboard</h2>
+                <div id="dashboardSummary" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10 relative">
+                    <!-- Metrics will be inserted here -->
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                    <!-- Habit Checklist (Main Content) -->
+                    <div class="lg:col-span-3">
+                        <h2 class="text-3xl font-bold mb-6 text-gray-900">3. Daily Habit Checklist</h2>
+                        <div id="stacksContainer" class="space-y-4">
+                            <p id="emptyMessage" class="text-center text-gray-500 italic p-6 bg-card-white rounded-xl shadow-sm">
+                                No habits found. Generate your first stack above!
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <!-- AD PLACEMENT 2 (Sidebar Card Ad - FREE ONLY) -->
+                    <div class="lg:col-span-1">
+                        <div id="adCardSide" class="hidden p-6 rounded-xl shadow-lg text-center ad-container">
+                            <p class="text-xs font-semibold uppercase mb-2">Sponsored Content</p>
+                            <h3 class="font-bold text-lg mb-2">New Book: Mindset Mastery</h3>
+                            <p class="text-sm">Learn the psychological secrets to unbreakable streaks. Available now on Amazon.</p>
+                            <button class="mt-3 w-full bg-yellow-600 text-white text-sm font-semibold py-2 rounded-lg hover:bg-yellow-700 transition">
+                                Read Sample Chapter
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 py-6 text-center mt-10">
+        <p class="text-gray-400 text-sm">&copy; 2025 Stack & Grow. Data saved with Firebase Firestore.</p>
+    </footer>
+
+    <script>
+        const currentHabitInput = document.getElementById('currentHabit');
+        const newHabitInput = document.getElementById('newHabit');
+        const generateButton = document.getElementById('generateStackButton');
+        const stackMessage = document.getElementById('stackMessage');
+        const stacksContainer = document.getElementById('stacksContainer');
+        const emptyMessage = document.getElementById('emptyMessage');
+        const dashboardSummary = document.getElementById('dashboardSummary');
+        const welcomeMessage = document.getElementById('welcomeMessage');
+        const adBannerTop = document.getElementById('adBannerTop');
+        const adCardSide = document.getElementById('adCardSide');
+
+        const MAX_FREE_STACKS_JS = 5;
+
+        /**
+         * Renders the list of generated habit stacks, updates dashboard metrics, and controls ad visibility.
+         */
+        window.renderStacks = function() {
+            const isPro = window.userAccountType === 'pro';
+            const sortedStacks = (window.habitStacks || []).sort((a, b) => b.createdAt - a.createdAt);
+            stacksContainer.innerHTML = '';
+            
+            // --- Ad Visibility Control ---
+            if (!isPro) {
+                adBannerTop.classList.remove('hidden');
+                adCardSide.classList.remove('hidden');
+            } else {
+                adBannerTop.classList.add('hidden');
+                adCardSide.classList.add('hidden');
+            }
+
+
+            // --- Gating Stack Generation ---
+            if (!isPro && sortedStacks.length >= MAX_FREE_STACKS_JS) {
+                generateButton.disabled = true;
+                stackMessage.classList.remove('hidden', 'bg-blue-100', 'border-blue-300', 'text-blue-800');
+                stackMessage.classList.add('bg-red-100', 'border-red-300', 'text-red-800');
+                stackMessage.innerHTML = `<span class="font-bold">Upgrade to PRO!</span> Free accounts are limited to ${MAX_FREE_STACKS_JS} stacks. Delete a stack or click the 'Go PRO' button above for an ad-free experience.`;
+            } else {
+                 generateButton.disabled = false;
+                 // Hide warning message if it was a limit warning
+                 if (stackMessage.innerHTML.includes('Free accounts are limited')) {
+                     stackMessage.classList.add('hidden');
+                 }
+            }
+
+            // --- Update Dashboard Metrics and Gating ---
+            renderDashboard(sortedStacks, isPro);
+            welcomeMessage.textContent = isPro ? '🔥 Premium Tracking Dashboard' : 'Start Building Your Routine! (Free)';
+
+
+            if (sortedStacks.length === 0) {
+                emptyMessage.classList.remove('hidden');
+                stacksContainer.appendChild(emptyMessage);
+                return;
+            }
+
+            emptyMessage.classList.add('hidden');
+
+            sortedStacks.forEach((stack) => {
+                const stackElement = document.createElement('div');
+                const isComplete = stack.isCompleteToday;
+
+                stackElement.className = `tracker-card flex flex-col sm:flex-row items-center justify-between p-4 sm:p-6 rounded-xl shadow-lg border-2 ${
+                    isComplete ? 'tracker-complete border-green-500' : 'bg-card-white border-gray-200 hover:shadow-xl'
+                }`;
+                
+                const stackPhrase = `After ${stack.trigger.trim()}, I will ${stack.action.trim()}.`;
+
+                // Left side: Checkbox and Content
+                const contentWrapper = document.createElement('div');
+                contentWrapper.className = 'flex items-start w-full sm:w-3/4 mb-3 sm:mb-0';
+                
+                // Checkbox Button
+                const toggleButton = document.createElement('button');
+                toggleButton.className = `flex-shrink-0 w-8 h-8 rounded-full border-2 mr-4 transition duration-200 flex items-center justify-center ${
+                    isComplete ? 'bg-green-500 border-green-500 text-white' : 'bg-white border-primary-blue text-primary-blue hover:bg-primary-blue/10'
+                }`;
+                toggleButton.innerHTML = isComplete 
+                    ? `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>`
+                    : ``;
+                toggleButton.onclick = () => window.toggleHabitCompletion(stack);
+
+
+                // Stack Text
+                const textContent = document.createElement('p');
+                textContent.className = `text-lg font-medium text-gray-700 leading-snug ${isComplete ? 'line-through text-gray-500' : 'text-gray-800'}`;
+                textContent.innerHTML = `
+                    <span class="text-sm font-light block text-gray-500 mb-1">Stack Phrase:</span>
+                    <span class="text-primary-teal font-semibold">After</span> ${stack.trigger.trim()}, 
+                    <span class="text-primary-teal font-semibold">I will</span> ${stack.action.trim()}.
+                `;
+                
+                contentWrapper.appendChild(toggleButton);
+                contentWrapper.appendChild(textContent);
+
+                // Right side: Streak & Actions
+                const actionsContainer = document.createElement('div');
+                actionsContainer.className = 'flex items-center space-x-4 flex-shrink-0';
+                
+                // Streak Display (Only visible for PRO)
+                const streakCount = stack.streakCount || 0;
+                const streakSpan = document.createElement('span');
+                streakSpan.className = `px-3 py-1 rounded-full text-xs font-bold ${
+                    streakCount > 0 ? 'bg-red-100 text-red-600 border border-red-300' : 'bg-gray-100 text-gray-500 border border-gray-300'
+                } ${isPro ? '' : 'hidden'}`; // GATED VISIBILITY
+                streakSpan.textContent = `${streakCount} Day Streak`;
+
+                // Copy Button
+                const copyButton = document.createElement('button');
+                copyButton.className = 'p-2 rounded-full text-primary-blue hover:bg-blue-100 transition duration-200';
+                copyButton.title = 'Copy Stack for Reminder';
+                copyButton.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v2"></path></svg>`;
+                copyButton.onclick = (e) => { e.stopPropagation(); copyStack(stackPhrase); };
+
+                // Delete Button
+                const deleteButton = document.createElement('button');
+                deleteButton.className = 'p-2 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 transition duration-200';
+                deleteButton.title = 'Delete Stack';
+                deleteButton.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>`;
+                deleteButton.onclick = (e) => { e.stopPropagation(); window.deleteStackFromDB(stack.id); };
+
+                if (isPro) actionsContainer.appendChild(streakSpan);
+                actionsContainer.appendChild(copyButton);
+                actionsContainer.appendChild(deleteButton);
+                
+                stackElement.appendChild(contentWrapper);
+                stackElement.appendChild(actionsContainer);
+                stacksContainer.appendChild(stackElement);
+            });
+        }
+
+        function createMetricCard(title, value, color, isPro) {
+            const card = document.createElement('div');
+            card.className = `p-6 bg-card-white rounded-xl shadow-lg border-l-4 border-${color} relative overflow-hidden`;
+            
+            card.innerHTML = `
+                <p class="text-sm font-semibold text-gray-500 uppercase tracking-wider">${title}</p>
+                <h3 class="text-2xl font-bold text-gray-900 mt-1">${value}</h3>
+            `;
+
+            if (!isPro && title !== "Total Stacks") { // Only lock the *tracking* metrics
+                const overlay = document.createElement('div');
+                overlay.className = 'pro-overlay';
+                overlay.innerHTML = `
+                    <div class="text-center text-gray-900 font-extrabold text-xl">
+                        <span class="bg-yellow-500 text-white px-3 py-1 rounded-full text-sm">PRO FEATURE</span><br>
+                        Unlock Tracking!
+                    </div>
+                `;
+                overlay.onclick = window.toggleProStatus; // Click to upgrade
+                card.appendChild(overlay);
+            }
+
+            return card;
+        }
+
+        function renderDashboard(sortedStacks, isPro) {
+            dashboardSummary.innerHTML = '';
+            
+            const completedCount = sortedStacks.filter(s => s.isCompleteToday).length;
+            const highestStreak = sortedStacks.reduce((max, s) => Math.max(max, s.streakCount || 0), 0);
+            
+            // 1. Daily Progress (Gated)
+            dashboardSummary.appendChild(createMetricCard(
+                "Daily Progress", 
+                `${completedCount} / ${sortedStacks.length}`, 
+                'yellow-500', 
+                isPro
+            ));
+
+            // 2. Total Stacks (Free)
+            dashboardSummary.appendChild(createMetricCard(
+                "Total Stacks", 
+                sortedStacks.length, 
+                'primary-teal', 
+                true 
+            ));
+
+            // 3. Highest Streak (Gated)
+            dashboardSummary.appendChild(createMetricCard(
+                "Highest Streak", 
+                `${highestStreak} Days 🔥`, 
+                'red-500', 
+                isPro
+            ));
+        }
+
+        /**
+         * Copies the stack phrase to the clipboard and shows a confirmation message.
+         */
+        function copyStack(text) {
+            const el = document.createElement('textarea');
+            el.value = text;
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+
+            stackMessage.classList.remove('bg-red-100', 'border-red-300', 'text-red-800', 'hidden');
+            stackMessage.classList.add('bg-primary-teal/20', 'border-primary-teal/50', 'text-gray-800');
+            stackMessage.innerHTML = `<span class="text-primary-teal font-bold">Copied!</span> Paste this into your calendar or alarm: <br class="sm:hidden"><code class="bg-gray-200 p-1 rounded font-mono text-xs">${text}</code>`;
+            
+            setTimeout(() => stackMessage.classList.add('hidden'), 5000);
+        }
+
+        /**
+         * Handles the generation and saving of a new habit stack.
+         */
+        generateButton.addEventListener('click', async () => {
+            const trigger = currentHabitInput.value.trim();
+            const action = newHabitInput.value.trim();
+
+            if (!trigger || !action) {
+                stackMessage.classList.remove('hidden');
+                stackMessage.classList.add('bg-red-100', 'border-red-300', 'text-red-800');
+                stackMessage.textContent = 'Both habit fields are required to start tracking.';
+                setTimeout(() => stackMessage.classList.add('hidden'), 5000);
+                return;
+            }
+
+            const success = await window.addStackToDB(trigger, action);
+
+            if (success) {
+                // Display success message
+                stackMessage.classList.remove('bg-red-100', 'border-red-300', 'text-red-800', 'hidden');
+                stackMessage.classList.add('bg-primary-teal/20', 'border-primary-teal/50', 'text-gray-800');
+                stackMessage.innerHTML = `<span class="text-primary-teal font-bold">New Stack Added!</span> Start tracking your progress below.`;
+
+                // Clear inputs and scroll
+                currentHabitInput.value = '';
+                newHabitInput.value = '';
+                document.getElementById('myStacks').scrollIntoView({ behavior: 'smooth' });
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initial call to update theme and render
+            window.renderStacks();
+            updateAppTheme();
+        });
+    </script>
+</body>
+</html>
+
