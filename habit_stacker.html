@@ -3,794 +3,346 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- PRIMARY TITLE for browser tabs -->
-    <title>Habit Stacker Pro | Build Unbreakable Routines</title>
-
-    <!-- OPEN GRAPH META TAGS (FOR GOOGLE/SOCIAL PREVIEWS) -->
-    <meta property="og:title" content="Habit Stacker Pro | Build Unbreakable Routines">
-    <meta property="og:description" content="Use the power of habit stacking to transform your daily routine. Track your progress, build streaks, and go PRO!">
-    <meta property="og:type" content="website">
-    <meta property="og:image" content="https://placehold.co/1200x630/06b6d4/ffffff?text=Habit+Stacker+Pro+App">
-    <meta property="og:url" content="https://your-app-url.com">
-    <!-- END OPEN GRAPH -->
-
+    <title>Stack & Grow - Habit Tracker</title>
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Custom style for gradient background and loader -->
     <style>
-        html { font-family: 'Inter', sans-serif; scroll-behavior: smooth; }
-        
-        /* Define the consistent CYAN to BLUE gradient for the header in both states */
-        .hero-bg-pro, .hero-bg-free { 
-            background-image: linear-gradient(to right bottom, #06b6d4, #3b82f6); /* Cyan-500 to Blue-500 */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        html { font-family: 'Inter', sans-serif; }
+        .hero-bg {
+            background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%); /* Cyan to Blue Gradient */
+            min-height: 100vh;
         }
-
-        /* Dark Theme overrides for elements */
-        .bg-page { background-color: #111827; /* Gray-900 */ }
-        .bg-card { background-color: #1f2937; /* Gray-800 */ }
-        .input-style { 
-            background-color: #374151; /* Gray-700 */
-            border-color: #4b5563; /* Gray-600 */
-            color: white;
-            transition: all 0.2s;
+        .card {
+            background-color: #1f2937; /* Dark blue/gray */
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
-        .input-style:focus {
-            border-color: #06b6d4; /* Cyan-500 */
-            ring-color: #06b6d4;
+        .btn-primary {
+            background-color: #06b6d4; /* Teal */
+            transition: background-color 0.2s;
         }
-
-        /* Styling for locked/pro content */
-        .pro-overlay {
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            /* Increased opacity to make the lock more visible */
-            background: rgba(17, 24, 39, 0.95); /* Dark overlay with high opacity */
-            border-radius: 0.75rem;
-            text-align: center;
-            z-index: 10;
-            cursor: pointer;
-            transition: opacity 0.3s;
+        .btn-primary:hover {
+            background-color: #0891b2;
         }
-
-        /* Dark Theme Ad Container */
-        .ad-container {
-            border: 2px dashed #fcd34d; /* Amber 400 */
-            background-color: #451a03; /* Amber 950 */
-            color: #fde68a; /* Amber 200 */
+        /* Loader styles - Simple spinning hourglass */
+        .hourglass {
+            display: inline-block;
+            width: 80px;
+            height: 80px;
+            position: relative;
+        }
+        .hourglass:after {
+            content: "";
+            display: block;
+            border-radius: 50%;
+            width: 0;
+            height: 0;
+            margin: 8px;
+            box-sizing: border-box;
+            border: 32px solid #3b82f6;
+            border-color: #3b82f6 transparent #3b82f6 transparent;
+            animation: hourglass 1.2s infinite;
+        }
+        @keyframes hourglass {
+            0% { transform: rotate(0); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
-<body class="bg-page min-h-screen text-white antialiased">
+<body class="hero-bg text-white">
 
-    <!-- Firebase Imports and Setup (MANDATORY) -->
+    <div id="app-container" class="max-w-md mx-auto p-4 pt-8">
+        <header class="text-center mb-6">
+            <h1 class="text-3xl font-extrabold flex items-center justify-center">
+                <svg class="w-8 h-8 mr-2 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                Stack & Grow
+            </h1>
+            <p id="user-id-display" class="text-xs text-gray-300 mt-1">User ID: Loading...</p>
+            <button class="w-full mt-4 py-3 bg-yellow-400 text-gray-900 font-bold rounded-lg shadow-lg hover:bg-yellow-300 transition duration-150">
+                Go PRO! Unlock Streaks for $1.00/mo (Ad-Free)
+            </button>
+        </header>
+
+        <!-- Dynamic Loading Overlay (Visible while connecting to Firebase) -->
+        <div id="loading-overlay" class="text-center py-16">
+            <div class="hourglass mx-auto"></div>
+            <p id="loading-message" class="text-lg mt-4 font-semibold">Connecting to database...</p>
+            <div id="error-message" class="hidden mt-4 p-3 bg-red-800 text-sm rounded-lg"></div>
+        </div>
+
+        <!-- Main App Content (Hidden until connection is successful) -->
+        <div id="main-app-content" class="hidden">
+            
+            <!-- 1. Generate New Stack -->
+            <section class="mb-8">
+                <h2 class="text-2xl font-bold mb-4">1. Generate New Stack</h2>
+                <div class="card space-y-4">
+                    <input type="text" id="habit-cue" placeholder="A: After I finish my coffee..." class="w-full px-4 py-3 bg-gray-700 border-none rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-500">
+                    <input type="text" id="habit-action" placeholder="B: I will meditate for 5 minutes." class="w-full px-4 py-3 bg-gray-700 border-none rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-500">
+                    <button onclick="saveNewHabit()" class="w-full btn-primary text-gray-900 font-bold py-3 rounded-lg flex items-center justify-center transition duration-150">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        Generate & Start Tracking
+                    </button>
+                </div>
+            </section>
+
+            <!-- 2. Tracking Dashboard (Will show loading state initially) -->
+            <section class="mb-8">
+                <h2 class="text-2xl font-bold mb-4">2. Tracking Dashboard</h2>
+                <div id="tracking-dashboard" class="card text-center text-gray-400 p-8">
+                    Loading habit data...
+                </div>
+            </section>
+
+            <!-- 3. Daily Habit Checklist (The missing section) -->
+            <section class="mb-8">
+                <h2 class="text-2xl font-bold mb-4">3. Daily Habit Checklist</h2>
+                <div id="habit-checklist" class="card space-y-3">
+                    <p class="text-gray-400 text-center" id="checklist-message">No habits found. Generate your first stack above!</p>
+                    <!-- Habit items will be inserted here -->
+                </div>
+            </section>
+
+        </div>
+
+        <footer class="text-center text-xs text-gray-500 mt-12">
+            © 2025 Stack & Grow. Data saved with Firebase Firestore.
+        </footer>
+    </div>
+
+    <!-- Firebase Imports and Logic -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, addDoc, deleteDoc, updateDoc, onSnapshot, collection, query, setDoc, getDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        
-        setLogLevel('Debug');
-
-        // CONSTANTS
-        const MAX_FREE_STACKS = 5; 
-        const PRIMARY_COLOR = '#06b6d4'; // Cyan-500
-        const PRO_PRICE = '$1.00'; 
-
-        // Global Firebase Variables
+        // 1. Mandatory Global Variables provided by the Canvas Environment
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        let db, auth, userId = null;
+        // 2. Firebase SDK Imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // setLogLevel('Debug'); // Uncomment to see detailed Firestore logs
+
+        let db = null;
+        let auth = null;
+        let userId = 'Loading...';
         let isAuthReady = false;
-        window.userAccountType = 'free'; // Default state
-        window.habitStacks = [];
-        
-        // Custom Modal Logic (Required: Cannot use alert/confirm)
-        const showModal = (title, message, confirmAction = null, isConfirm = false) => {
-            const modal = document.getElementById('customModal');
-            const modalTitle = document.getElementById('modalTitle');
-            const modalBody = document.getElementById('modalBody');
-            const modalFooter = document.getElementById('modalFooter');
 
-            modalTitle.textContent = title;
-            modalBody.innerHTML = message;
-
-            modalFooter.innerHTML = '';
-            
-            if (isConfirm) {
-                const cancelBtn = document.createElement('button');
-                cancelBtn.textContent = 'Cancel';
-                cancelBtn.className = 'px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition';
-                cancelBtn.onclick = closeModal;
-                
-                const confirmBtn = document.createElement('button');
-                confirmBtn.textContent = 'Confirm';
-                confirmBtn.className = 'px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition';
-                confirmBtn.onclick = () => {
-                    if (confirmAction) confirmAction();
-                    closeModal(); // Close after action
-                };
-                
-                modalFooter.appendChild(cancelBtn);
-                modalFooter.appendChild(confirmBtn);
-            } else {
-                const closeBtn = document.createElement('button');
-                closeBtn.textContent = 'Close';
-                closeBtn.className = 'px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition';
-                closeBtn.onclick = closeModal;
-                modalFooter.appendChild(closeBtn);
-            }
-
-            modal.classList.remove('hidden');
-        };
-
-        const closeModal = () => {
-            document.getElementById('customModal').classList.add('hidden');
-        };
-
-        // --- Firebase Initialization ---
-        if (firebaseConfig) {
-            const app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-
-            // 1. Authentication Setup
-            onAuthStateChanged(auth, async (user) => {
-                const userIdDisplay = document.getElementById('userIdDisplay');
-                const generateButton = document.getElementById('generateStackButton');
-
-                if (user) {
-                    userId = user.uid;
-                    isAuthReady = true;
-                    userIdDisplay.textContent = userId;
-                    generateButton.innerHTML = `<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>Generate & Start Tracking`;
-                    
-                    await loadUserAccountType(); // Load status first (calls renderApp)
-                    startHabitListener(); // Then start listening for stacks
-                } else {
-                    try {
-                        if (initialAuthToken) {
-                            await signInWithCustomToken(auth, initialAuthToken);
-                        } else {
-                            // Anonymous sign-in if no token is available
-                            await signInAnonymously(auth);
-                        }
-                    } catch (error) {
-                        console.error("Firebase Sign-in Failed:", error);
-                        userIdDisplay.textContent = 'Auth Failed';
-                    } finally {
-                         // IMPORTANT: Always set isAuthReady to true once the attempt is made
-                        isAuthReady = true; 
-                        // Update button and app status even if sign-in failed/anonymous
-                        generateButton.innerHTML = `<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>Generate & Start Tracking`;
-                        renderApp(); 
-                    }
-                }
-            });
-        } else {
-            console.error("Firebase config is missing. Data persistence disabled.");
+        // Utility function to display errors
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = `Error: ${message}`;
+            errorDiv.classList.remove('hidden');
+            document.getElementById('loading-message').textContent = 'Connection Error';
+            console.error(message);
         }
 
-        // --- Firestore Utility Functions ---
-
-        function getUserDataDocRef() {
-            // Path: /artifacts/{appId}/users/{userId}/user_data/account
-            const currentUserId = auth.currentUser?.uid || 'anonymous';
-            return doc(db, `artifacts/${appId}/users/${currentUserId}/user_data/account`);
-        }
-
-        function getStacksCollectionRef() {
-            // Path: /artifacts/{appId}/users/{userId}/stacks
-            const currentUserId = auth.currentUser?.uid || 'anonymous';
-            return collection(db, `artifacts/${appId}/users/${currentUserId}/stacks`);
-        }
+        // --- Core Application Logic ---
 
         /**
-         * Loads the user's account type from Firestore.
+         * The core function to start listening for habit data changes.
+         * This function should only be called AFTER successful authentication.
          */
-        async function loadUserAccountType() {
-            if (!isAuthReady || !db) return;
-            try {
-                const docRef = getUserDataDocRef();
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    window.userAccountType = docSnap.data().accountType || 'free';
-                } else {
-                    // Set initial account type if document doesn't exist
-                    await setDoc(docRef, { accountType: 'free' });
-                    window.userAccountType = 'free';
-                }
-                updateAppTheme();
-                renderApp(); // Rerender after account type is confirmed
-            } catch (error) {
-                console.error("Error loading account type:", error);
-            }
-        }
-        
-        /**
-         * Simulates upgrading/downgrading the user's account.
-         */
-        window.performProUpgrade = async () => {
-            if (!isAuthReady || !db) {
-                showModal('Error', 'Authentication not ready. Please wait.');
+        function loadHabits() {
+            if (!db || !userId) {
+                console.warn("Firestore not ready or userId missing. Skipping loadHabits.");
                 return;
             }
 
-            try {
-                const docRef = getUserDataDocRef();
-                await setDoc(docRef, { accountType: 'pro' }, { merge: true });
-                window.userAccountType = 'pro';
-                updateAppTheme();
-                renderApp();
-                showModal('PRO UNLOCKED!', `<p class="text-green-400 font-bold">Thank you for subscribing!</p><p>You now have unlimited stacks, streak tracking, and an ad-free experience for only ${PRO_PRICE}/month.</p>`, null, false);
-            } catch (error) {
-                showModal('Error', `Failed to update PRO status: ${error.message}`);
-            }
-        };
+            // Public data collection path: /artifacts/{appId}/public/data/habits
+            const habitsColRef = collection(db, `artifacts/${appId}/public/data/habits`);
+            // Note: Per instructions, avoiding orderBy() and will sort in memory if needed.
+            const q = query(habitsColRef);
 
-        /**
-         * Handles downgrading the user's account.
-         */
-        window.performFreeDowngrade = async () => {
-             if (!isAuthReady || !db) {
-                showModal('Error', 'Authentication not ready. Please wait.');
-                return;
-            }
-
-            try {
-                const docRef = getUserDataDocRef();
-                await setDoc(docRef, { accountType: 'free' }, { merge: true });
-                window.userAccountType = 'free';
-                updateAppTheme();
-                renderApp();
-                showModal('Downgraded to Free', '<p class="text-yellow-400 font-bold">You are now on the Free tier.</p><p>You may encounter advertisements and are limited to 5 stacks.</p>', null, false);
-            } catch (error) {
-                showModal('Error', `Failed to downgrade status: ${error.message}`);
-            }
-        };
-
-        /**
-         * Primary function triggered by the main button. Checks status and shows appropriate modal.
-         */
-        window.handleProToggle = () => {
-            if (window.userAccountType === 'free') {
-                showPaymentModal();
-            } else {
-                 showModal(
-                    'Confirm Downgrade',
-                    '<p class="text-lg font-semibold">Are you sure you want to cancel your PRO subscription?</p><ul class="list-disc list-inside mt-2 text-red-300"><li>Ads will return immediately.</li><li>You will be limited to 5 stacks.</li><li>You will lose advanced dashboard features.</li></ul>',
-                    window.performFreeDowngrade,
-                    true
-                );
-            }
-        };
-
-
-        // UI function to update colors and buttons based on status
-        function updateAppTheme() {
-            const toggleButton = document.getElementById('toggleProButton');
-            
-            if (window.userAccountType === 'pro') {
-                toggleButton.textContent = 'Manage Subscription (PRO Active)';
-                toggleButton.classList.remove('bg-yellow-500', 'hover:bg-yellow-600', 'text-gray-900');
-                toggleButton.classList.add('bg-gray-500', 'hover:bg-gray-600', 'text-white');
-                document.getElementById('welcomeMessage').textContent = "Welcome back, PRO Stacker!";
-            } else {
-                toggleButton.textContent = `Go PRO! Unlock Streaks for ${PRO_PRICE}/mo (Ad-Free)`; // Price update applied here
-                toggleButton.classList.remove('bg-gray-500', 'hover:bg-gray-600', 'text-white');
-                toggleButton.classList.add('bg-yellow-500', 'hover:bg-yellow-600', 'text-gray-900');
-                document.getElementById('welcomeMessage').textContent = "Start Building Your Routine!";
-            }
-        }
-
-
-        // Listen for real-time changes
-        function startHabitListener() {
-            if (!isAuthReady || !db || !auth.currentUser) return;
-
-            const stacksQuery = query(getStacksCollectionRef());
-
-            onSnapshot(stacksQuery, (snapshot) => {
-                const fetchedStacks = [];
-                snapshot.forEach(doc => {
-                    fetchedStacks.push({ id: doc.id, ...doc.data() });
+            // Set up real-time listener
+            onSnapshot(q, (snapshot) => {
+                const habits = [];
+                snapshot.forEach((doc) => {
+                    habits.push({ id: doc.id, ...doc.data() });
                 });
-                window.habitStacks = fetchedStacks; 
-                renderApp(); 
+                
+                // Sort habits by creation time (simulating orderBy)
+                habits.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+
+                renderHabits(habits);
             }, (error) => {
-                console.error("Error listening to stacks:", error);
+                showError(`Failed to fetch habits: ${error.message}`);
             });
         }
 
         /**
-         * Adds a new stack to Firestore. Check for limits first.
+         * Renders the habit data to sections 2 and 3 of the UI.
+         * @param {Array} habits - The array of habit objects.
          */
-        window.addStackToDB = async (trigger, action) => {
-            if (!isAuthReady || !db || !auth.currentUser) {
-                showStackMessage("Waiting for database connection. Please try again in a moment.", 'error');
-                console.warn("Attempted to add stack before auth was ready.");
-                return false; 
-            }
-            
-            if (window.userAccountType === 'free' && window.habitStacks.length >= MAX_FREE_STACKS) {
-                showModal('Stack Limit Reached', `<p class="text-red-300 font-bold">Free accounts are limited to ${MAX_FREE_STACKS} stacks.</p><p>Please delete an existing stack or upgrade to PRO to continue adding more.</p>`);
-                return false; 
-            }
+        function renderHabits(habits) {
+            const dashboard = document.getElementById('tracking-dashboard');
+            const checklist = document.getElementById('habit-checklist');
+            const checklistMessage = document.getElementById('checklist-message');
 
-            try {
-                await addDoc(getStacksCollectionRef(), {
-                    trigger: trigger,
-                    action: action,
-                    createdAt: new Date().getTime(),
-                    isCompleteToday: false, 
-                    streakCount: 0,         
-                    lastCompletedDate: null   
-                });
-                showStackMessage("Success! Stack added.", 'success');
-                return true; 
-            } catch (error) {
-                showStackMessage(`Error adding stack: ${error.message}`, 'error');
-                return false;
-            }
-        };
-
-        /**
-         * Deletes a stack from Firestore.
-         */
-        window.deleteStackFromDB = async (id) => {
-            if (!isAuthReady || !db) return console.error("Database not ready.");
-            try {
-                const stackDocRef = doc(getStacksCollectionRef(), id);
-                await deleteDoc(stackDocRef);
-            } catch (error) {
-                showModal('Error', `Failed to delete stack: ${error.message}`);
-            }
-        };
-
-        /**
-         * Updates the habit's completion status and streak.
-         */
-        window.toggleHabitCompletion = async (stack) => {
-            if (!isAuthReady || !db) return console.error("Database not ready.");
-            
-            const docRef = doc(getStacksCollectionRef(), stack.id);
-            const today = new Date().toISOString().split('T')[0];
-            
-            let newStreak = stack.streakCount || 0;
-            let newLastCompletedDate = stack.lastCompletedDate;
-            let newIsCompleteToday = !stack.isCompleteToday;
-            
-            if (newIsCompleteToday) {
-                const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-                
-                // Check if streak can continue (completed yesterday or first time today)
-                if (stack.lastCompletedDate === yesterday || stack.lastCompletedDate === null) {
-                    newStreak++;
-                } else if (stack.lastCompletedDate !== today) {
-                    // Start new streak if missed a day
-                    newStreak = 1;
-                }
-                newLastCompletedDate = today;
-
-            } else {
-                // If unchecking, and it was completed today, reset streak (this is simplistic)
-                if (stack.lastCompletedDate === today) {
-                    newStreak = Math.max(0, newStreak - 1); // Decrement streak count
-                    newLastCompletedDate = null;
-                }
-            }
-
-            try {
-                await updateDoc(docRef, {
-                    isCompleteToday: newIsCompleteToday,
-                    streakCount: newStreak,
-                    lastCompletedDate: newLastCompletedDate
-                });
-            } catch (error) {
-                console.error("Error updating document:", error);
-            }
-        };
-
-        // --- Payment Modal Logic ---
-        function showPaymentModal() {
-            const paymentContent = `
-                <div class="space-y-4">
-                    <h4 class="text-3xl font-extrabold text-cyan-400">Stack & Grow PRO</h4>
-                    <p class="text-xl font-bold text-white mb-4">${PRO_PRICE} / month</p>
-                    
-                    <p class="text-gray-300">Unlock your full potential with an ad-free, unlimited stacking experience.</p>
-                    
-                    <ul class="list-none space-y-2 text-left text-gray-200">
-                        <li class="flex items-center">
-                            <svg class="w-5 h-5 mr-2 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
-                            Unlimited Habit Stacks
-                        </li>
-                        <li class="flex items-center">
-                            <svg class="w-5 h-5 mr-2 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
-                            Ad-Free Tracking
-                        </li>
-                        <li class="flex items-center">
-                            <svg class="w-5 h-5 mr-2 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
-                            Advanced Streak & History Dashboard
-                        </li>
-                    </ul>
-                </div>
-            `;
-
-            showModal('Upgrade to PRO', paymentContent, () => {
-                // Simulate redirect to payment provider and successful payment
-                showModal('Processing Payment...', '<p>You would now be redirected to a secure payment page (e.g., Stripe/PayPal) to enter your details.</p><p class="text-yellow-400 font-medium mt-2">Simulating successful payment...</p>');
-                
-                // Wait briefly, then execute the upgrade
-                setTimeout(() => {
-                    window.performProUpgrade();
-                }, 1500);
-
-            }, true); // Use the confirmation button setup
-            
-            // Override the default confirm button text and style
-            const footer = document.getElementById('modalFooter');
-            const confirmBtn = footer.querySelector('.bg-cyan-600');
-            if (confirmBtn) {
-                confirmBtn.textContent = `Pay ${PRO_PRICE} / month`; 
-                confirmBtn.classList.remove('bg-cyan-600');
-                confirmBtn.classList.add('bg-yellow-500', 'hover:bg-yellow-600', 'text-gray-900', 'font-bold');
-            }
-        }
-
-        // --- UI Rendering ---
-
-        function showStackMessage(message, type) {
-            const el = document.getElementById('stackMessage');
-            el.textContent = message;
-            el.classList.remove('hidden', 'bg-red-900', 'border-red-700', 'text-red-300', 'bg-cyan-900', 'border-cyan-700', 'text-cyan-300');
-            
-            if (type === 'error') {
-                 el.classList.add('bg-red-900', 'border-red-700', 'text-red-300');
-            } else {
-                 el.classList.add('bg-cyan-900', 'border-cyan-700', 'text-cyan-300');
-            }
-            el.classList.remove('hidden');
-            setTimeout(() => el.classList.add('hidden'), 5000);
-        }
-
-        function renderDashboard() {
-            const isPro = window.userAccountType === 'pro';
-            const isConnecting = !isAuthReady;
-            const stacks = window.habitStacks || [];
-            const total = stacks.length;
-            const completed = stacks.filter(s => s.isCompleteToday).length;
-            const highestStreak = stacks.reduce((max, s) => Math.max(max, s.streakCount || 0), 0);
-
-            const dashboardSummary = document.getElementById('dashboardSummary');
-            
-            // Always render the base metric cards
-            dashboardSummary.innerHTML = `
-                <div class="metric-card bg-card p-5 rounded-xl shadow-lg border-b-4 border-cyan-500">
-                    <p class="text-xs uppercase font-semibold text-gray-400">Total Stacks</p>
-                    <p class="text-3xl font-extrabold text-cyan-400 mt-1">${total}</p>
-                </div>
-                <div class="metric-card bg-card p-5 rounded-xl shadow-lg border-b-4 border-blue-500">
-                    <p class="text-xs uppercase font-semibold text-gray-400">Completed Today</p>
-                    <p class="text-3xl font-extrabold text-blue-400 mt-1">${completed}</p>
-                </div>
-                <div class="metric-card bg-card p-5 rounded-xl shadow-lg border-b-4 border-yellow-500">
-                    <p class="text-xs uppercase font-semibold text-gray-400">Highest Streak</p>
-                    <p class="text-3xl font-extrabold text-yellow-400 mt-1">${highestStreak} ${highestStreak === 0 ? '' : '🔥'}</p>
-                </div>
-            `;
-            
-            // Apply the PRO Overlay if not PRO OR if still connecting
-            if (!isPro || isConnecting) {
-                let lockHtml = '';
-                let cursorStyle = 'cursor-pointer';
-                let overlayClass = 'pro-overlay';
-                let clickAction = window.handleProToggle;
-
-                if (isConnecting) {
-                    // Show connecting/loading state
-                    lockHtml = `
-                        <div class="p-6">
-                            <p class="text-5xl text-gray-400 mb-3" aria-hidden="true">⏳</p>
-                            <p class="text-xl font-extrabold text-white mb-2">LOADING DASHBOARD</p>
-                            <p class="text-gray-300 font-medium">Connecting to database...</p>
-                        </div>
-                    `;
-                    clickAction = null; // No action on click while loading
-                    cursorStyle = 'cursor-default';
-                } else {
-                    // Show PRO lock state
-                    lockHtml = `
-                        <div class="p-6">
-                            <p class="text-5xl text-yellow-400 mb-3" aria-hidden="true">🔒</p>
-                            <p class="text-xl font-extrabold text-white mb-2">DASHBOARD LOCKED</p>
-                            <p class="text-gray-300 font-medium">Click to unlock PRO features!</p>
-                        </div>
-                    `;
-                }
-
-                const overlay = document.createElement('div');
-                overlay.className = `${overlayClass} ${cursorStyle}`;
-                overlay.onclick = clickAction; 
-                overlay.innerHTML = lockHtml;
-
-                dashboardSummary.style.position = 'relative';
-                dashboardSummary.appendChild(overlay);
-                
-                // Explicitly blur the underlying content for better visual effect
-                Array.from(dashboardSummary.children).forEach(child => {
-                    if (child !== overlay) {
-                        child.classList.add('filter', 'blur-sm', 'opacity-50');
-                    }
-                });
-
-            } else {
-                // Ensure no blur or overlay exists if user is PRO
-                Array.from(dashboardSummary.children).forEach(child => {
-                    child.classList.remove('filter', 'blur-sm', 'opacity-50');
-                });
-            }
-        }
-
-
-        /**
-         * Renders the entire app view (stacks list, dashboard, ads)
-         */
-        window.renderApp = function() {
-            const isPro = window.userAccountType === 'pro';
-            const sortedStacks = (window.habitStacks || []).sort((a, b) => b.createdAt - a.createdAt);
-            
-            // 1. Dashboard Update (Handles loading/locking state)
-            renderDashboard();
-
-            // 2. Ad Visibility Control
-            if (!isPro) {
-                document.getElementById('adBannerTop').classList.remove('hidden');
-                document.getElementById('adCardSide').classList.remove('hidden');
-            } else {
-                document.getElementById('adBannerTop').classList.add('hidden');
-                document.getElementById('adCardSide').classList.add('hidden');
-            }
-
-            // 3. Gating Stack Generation
-            const generateButton = document.getElementById('generateStackButton');
-            const currentHabitInput = document.getElementById('currentHabit');
-            const newHabitInput = document.getElementById('newHabit');
-            const stackMessage = document.getElementById('stackMessage');
-            const stacksContainer = document.getElementById('stacksContainer');
-            const emptyMessage = document.getElementById('emptyMessage');
-
-            if (!isPro && sortedStacks.length >= MAX_FREE_STACKS) {
-                generateButton.disabled = true;
-                currentHabitInput.disabled = true;
-                newHabitInput.disabled = true;
-                stackMessage.classList.remove('hidden', 'bg-cyan-900', 'border-cyan-700', 'text-cyan-300');
-                stackMessage.classList.add('bg-red-900', 'border-red-700', 'text-red-300');
-                stackMessage.innerHTML = `<span class="font-bold">Upgrade to PRO!</span> Free accounts are limited to ${MAX_FREE_STACKS} stacks. Delete a stack or click the 'Go PRO' button above for more.`;
-            } else {
-                 generateButton.disabled = false;
-                 currentHabitInput.disabled = false;
-                 newHabitInput.disabled = false;
-                 // Hide warning message if it was a limit warning
-                 if (stackMessage.innerHTML.includes('Free accounts are limited')) {
-                     stackMessage.classList.add('hidden');
-                 }
-            }
-            
-            // 4. Render Stacks List
-            stacksContainer.innerHTML = '';
-            if (sortedStacks.length === 0) {
-                emptyMessage.textContent = 'No habits found. Generate your first stack above!';
-                emptyMessage.classList.remove('hidden');
-                stacksContainer.appendChild(emptyMessage);
+            if (habits.length === 0) {
+                dashboard.innerHTML = `<p class="text-base font-semibold text-gray-300">Start by creating your first habit stack above!</p>`;
+                checklistMessage.classList.remove('hidden');
                 return;
             }
-            emptyMessage.classList.add('hidden');
+            
+            checklistMessage.classList.add('hidden');
+            
+            // Render Dashboard (Section 2)
+            const totalStacks = habits.length;
+            const completedToday = habits.filter(h => h.completedToday).length;
 
-            sortedStacks.forEach(stack => {
-                const isChecked = stack.isCompleteToday;
-                const cardClass = isChecked ? 'border-green-500' : 'border-red-500';
-                const checkButtonClass = isChecked ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-600 hover:bg-gray-700';
+            dashboard.innerHTML = `
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-4xl font-extrabold text-cyan-400">${totalStacks}</p>
+                        <p class="text-gray-300 text-sm mt-1">Total Stacks</p>
+                    </div>
+                    <div>
+                        <p class="text-4xl font-extrabold text-teal-400">${completedToday}</p>
+                        <p class="text-gray-300 text-sm mt-1">Completed Today</p>
+                    </div>
+                </div>
+            `;
 
-                const stackEl = document.createElement('div');
-                stackEl.className = `bg-card p-5 rounded-xl shadow-lg border-l-4 ${cardClass} flex justify-between items-center transition duration-300`;
-                stackEl.innerHTML = `
-                    <div class="flex-1 min-w-0 pr-4">
-                        <p class="text-lg font-semibold text-white">
-                            <span class="text-cyan-400">A:</span> ${stack.trigger} 
-                            <span class="text-gray-500 font-normal mx-1">→</span> 
-                            <span class="text-blue-400">B:</span> ${stack.action}
-                        </p>
-                        ${isPro ? `<p class="text-xs mt-1 text-yellow-400 font-semibold flex items-center">
-                            <svg class="w-4 h-4 mr-1 text-yellow-500" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zm-1 12H8V7h2v7zM10 6a1 1 0 100-2 1 1 0 000 2z"/></svg>
-                            Streak: ${stack.streakCount || 0} days
-                        </p>` : ''}
+            // Render Checklist (Section 3)
+            checklist.innerHTML = '';
+            habits.forEach(habit => {
+                const checked = habit.completedToday ? 'checked' : '';
+                const item = document.createElement('div');
+                item.className = 'flex items-center justify-between p-3 bg-gray-700 rounded-lg';
+                item.innerHTML = `
+                    <div class="flex flex-col text-left">
+                        <p class="text-sm font-semibold text-gray-200">Cue: ${habit.cue}</p>
+                        <p class="text-base font-bold text-white">${habit.action}</p>
                     </div>
-                    <div class="flex items-center space-x-3">
-                        <button class="toggle-check p-3 rounded-full text-white ${checkButtonClass} transition duration-150 active:scale-95" data-id="${stack.id}" aria-label="Toggle completion">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${isChecked ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'}"></path></svg>
-                        </button>
-                        <button class="delete-stack p-3 rounded-full text-gray-400 hover:text-red-400 transition duration-150 active:scale-95" data-id="${stack.id}" aria-label="Delete stack">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                        </button>
-                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" data-habit-id="${habit.id}" ${checked} class="sr-only peer" onchange="toggleHabitCompletion(this)">
+                        <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-cyan-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600"></div>
+                    </label>
                 `;
-                stacksContainer.appendChild(stackEl);
+                checklist.appendChild(item);
+            });
+        }
+        
+        // Expose function globally for HTML inline event
+        window.saveNewHabit = async function() {
+            if (!db || !userId) {
+                showError('Database is not connected. Please try again.');
+                return;
+            }
 
-                // Attach event listeners
-                stackEl.querySelector('.toggle-check').addEventListener('click', (e) => {
-                    const id = e.currentTarget.dataset.id;
-                    const stack = window.habitStacks.find(s => s.id === id);
-                    if (stack) window.toggleHabitCompletion(stack);
+            const cueInput = document.getElementById('habit-cue');
+            const actionInput = document.getElementById('habit-action');
+            const cue = cueInput.value.trim();
+            const action = actionInput.value.trim();
+
+            if (!cue || !action) {
+                alert('Please enter both the cue (A) and the action (B).'); // Using alert here for simplicity, typically would use a custom modal.
+                return;
+            }
+
+            try {
+                // Public data collection path: /artifacts/{appId}/public/data/habits
+                const habitsColRef = collection(db, `artifacts/${appId}/public/data/habits`);
+                
+                await setDoc(doc(habitsColRef), {
+                    userId: userId,
+                    cue: cue,
+                    action: action,
+                    completedToday: false,
+                    createdAt: Date.now()
                 });
 
-                stackEl.querySelector('.delete-stack').addEventListener('click', (e) => {
-                     const id = e.currentTarget.dataset.id;
-                     const stack = window.habitStacks.find(s => s.id === id);
-                     showModal(
-                        'Confirm Deletion',
-                        `Are you sure you want to delete the stack: <strong>${stack.trigger} → ${stack.action}</strong>?`,
-                        () => window.deleteStackFromDB(id),
-                        true
-                    );
+                cueInput.value = '';
+                actionInput.value = '';
+            } catch (error) {
+                showError(`Failed to save habit: ${error.message}`);
+            }
+        }
+
+        // Expose function globally for HTML inline event
+        window.toggleHabitCompletion = async function(checkbox) {
+            if (!db || !userId) {
+                showError('Database is not connected. Cannot update.');
+                return;
+            }
+
+            const habitId = checkbox.dataset.habitId;
+            const isChecked = checkbox.checked;
+
+            try {
+                // Public document path: /artifacts/{appId}/public/data/habits/{habitId}
+                const docRef = doc(db, `artifacts/${appId}/public/data/habits/${habitId}`);
+                
+                await setDoc(docRef, { completedToday: isChecked }, { merge: true });
+            } catch (error) {
+                showError(`Failed to update habit: ${error.message}`);
+                // Revert checkbox state on failure
+                checkbox.checked = !isChecked; 
+            }
+        }
+
+        /**
+         * Initializes Firebase and sets up the authentication listener.
+         */
+        async function initializeAppAndAuth() {
+            try {
+                // Initialize Firebase App and Services
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                // Set persistence to session to maintain login for the duration of the tab
+                await setPersistence(auth, browserSessionPersistence);
+
+                // Try to sign in with the custom token or anonymously
+                if (initialAuthToken) {
+                    document.getElementById('loading-message').textContent = 'Authenticating user...';
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    document.getElementById('loading-message').textContent = 'Signing in anonymously...';
+                    await signInAnonymously(auth);
+                }
+
+                // IMPORTANT: Set up the Auth State Listener to handle the asynchronous sign-in result
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        isAuthReady = true;
+
+                        // 1. Update UI
+                        document.getElementById('user-id-display').textContent = `User ID: ${userId.substring(0, 8)}...`;
+                        document.getElementById('loading-overlay').classList.add('hidden');
+                        document.getElementById('main-app-content').classList.remove('hidden');
+                        
+                        // 2. Start Data Fetching
+                        loadHabits();
+
+                    } else {
+                        // This handles cases where sign-in fails or the token is bad
+                        userId = 'Anonymous (Offline)';
+                        isAuthReady = true; // Still ready, but failed to connect/auth
+                        document.getElementById('user-id-display').textContent = `User ID: ${userId}`;
+                        showError('Authentication failed. Data will not be saved. Check security rules.');
+                        document.getElementById('loading-overlay').classList.add('hidden');
+                        document.getElementById('main-app-content').classList.remove('hidden'); // Show app anyway, maybe it can be used for mock data
+                    }
                 });
-            });
-        };
+            } catch (error) {
+                showError(`Initialization failed: ${error.message}. Check your Firebase config.`);
+                document.getElementById('loading-overlay').classList.add('hidden');
+            }
+        }
 
-        // --- Main Listener for Stack Generation ---
-        document.addEventListener('DOMContentLoaded', () => {
-            const currentHabitInput = document.getElementById('currentHabit');
-            const newHabitInput = document.getElementById('newHabit');
-            const generateButton = document.getElementById('generateStackButton');
-            const userIdDisplay = document.getElementById('userIdDisplay');
+        // Start the application setup on window load
+        window.onload = initializeAppAndAuth;
 
-            // 1. Initial Render: Show loading state for the dashboard immediately
-            renderDashboard();
-
-            // 2. Initial state while loading auth
-            generateButton.innerHTML = `<svg class="w-5 h-5 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 0014 4"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 20v-5h-.581m-15.357-2A8.001 8.001 0 0010 20"></path></svg>Connecting to database...`;
-            userIdDisplay.textContent = 'Connecting...';
-
-
-            generateButton.addEventListener('click', async (e) => {
-                e.preventDefault();
-                const trigger = currentHabitInput.value.trim();
-                const action = newHabitInput.value.trim();
-
-                if (!trigger || !action) {
-                    showStackMessage("Please fill in both the trigger (A) and the new habit (B).", 'error');
-                    return;
-                }
-                
-                generateButton.disabled = true;
-                const success = await window.addStackToDB(trigger, action); 
-                generateButton.disabled = false;
-                
-                if (success) {
-                    currentHabitInput.value = '';
-                    newHabitInput.value = '';
-                }
-            });
-        });
     </script>
-    
-    <!-- Custom Modal Structure -->
-    <div id="customModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-black bg-opacity-75" onclick="if(event.target.id === 'customModal') closeModal()">
-        <div class="bg-card rounded-xl shadow-2xl w-full max-w-md p-6 transform transition-all duration-300 scale-100">
-            <div class="flex justify-between items-start mb-4">
-                <h3 id="modalTitle" class="text-2xl font-bold text-white">Modal Title</h3>
-                <button onclick="closeModal()" class="text-gray-400 hover:text-white transition" aria-label="Close dialog">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                </button>
-            </div>
-            <div id="modalBody" class="mb-6 text-gray-300 space-y-4">
-                <!-- Content injected here -->
-            </div>
-            <div id="modalFooter" class="flex justify-end space-x-3">
-                <!-- Buttons injected here -->
-            </div>
-        </div>
-    </div>
-    
-    <!-- Header/Navigation -->
-    <header class="bg-gray-800 shadow-lg sticky top-0 z-10">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
-            <div class="flex items-center">
-                 <svg class="w-8 h-8 mr-2 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                <a href="#" class="text-2xl font-extrabold text-white tracking-wide">Stack & Grow</a>
-            </div>
-             <p class="text-xs text-gray-500 font-medium truncate">User ID: <span id="userIdDisplay" class="font-mono text-cyan-400">Connecting...</span></p>
-        </div>
-    </header>
-
-    <main>
-        <!-- Hero & Generator Section -->
-        <section id="heroSection" class="hero-bg-free py-12 md:py-16 border-b-4 border-cyan-500 transition duration-500">
-            <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-                <h1 class="text-3xl sm:text-4xl font-extrabold mb-4 text-white leading-tight drop-shadow-lg">
-                    <span id="welcomeMessage">Start Building Your Routine!</span>
-                </h1>
-                
-                <!-- PRO Toggle Button -->
-                <button id="toggleProButton" onclick="window.handleProToggle()" class="mb-8 font-bold px-6 py-2 rounded-full text-gray-900 shadow-xl transition duration-300 transform hover:scale-105 bg-yellow-500 hover:bg-yellow-600">
-                    Go PRO! Unlock Streaks for $1.00/mo (Ad-Free)
-                </button>
-                
-                <!-- Habit Stacking Tool Card -->
-                <div class="bg-card p-6 sm:p-8 rounded-3xl shadow-2xl ring-4 ring-cyan-500/20">
-                    <h2 class="text-2xl font-bold mb-6 text-white">1. Generate New Stack</h2>
-                    <div class="space-y-4 sm:space-y-6">
-                        <div>
-                            <input type="text" id="currentHabit" placeholder="A: After I finish my coffee..." class="input-style w-full px-4 py-3 rounded-xl focus:ring-1 transition duration-300 shadow-sm" required>
-                        </div>
-                        <div>
-                            <input type="text" id="newHabit" placeholder="B: I will meditate for 5 minutes." class="input-style w-full px-4 py-3 rounded-xl focus:ring-1 transition duration-300 shadow-sm" required>
-                        </div>
-                    </div>
-
-                    <!-- Button -->
-                    <button id="generateStackButton" class="mt-6 w-full sm:w-2/3 bg-cyan-600 text-white font-semibold px-8 py-3 rounded-xl shadow-lg hover:bg-cyan-700 transition duration-300 flex items-center justify-center mx-auto disabled:opacity-50 disabled:cursor-not-allowed">
-                        <!-- Content will be replaced by JS on DOMContentLoaded and onAuthStateChanged -->
-                        Connecting to database...
-                    </button>
-                    
-                    <!-- Notification/Message Box -->
-                    <div id="stackMessage" class="mt-4 p-3 rounded-xl hidden text-left font-medium text-sm">
-                    </div>
-                </div>
-                
-                <!-- AD PLACEMENT 1 (Top Banner Ad - FREE ONLY) -->
-                <div id="adBannerTop" class="hidden mt-8 w-full max-w-lg mx-auto p-4 rounded-xl shadow-md text-center ad-container">
-                    <p class="text-xs font-semibold uppercase mb-1">Advertisement</p>
-                    <p class="text-sm font-bold">🎯 Boost Your Productivity with the 'FocusFlow' App!</p>
-                    <p class="text-xs mt-1">Click here to get 30% off your first month.</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- Stacks List and Tracking Dashboard -->
-        <section id="myStacks" class="py-12 md:py-16">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                
-                <h2 class="text-3xl font-bold mb-6 text-white">2. Tracking Dashboard</h2>
-                <div id="dashboardSummary" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10 relative">
-                    <!-- Metrics will be inserted here by renderDashboard() -->
-                </div>
-
-                <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                    <!-- Habit Checklist (Main Content) -->
-                    <div class="lg:col-span-3">
-                        <h2 class="text-3xl font-bold mb-6 text-white">3. Daily Habit Checklist</h2>
-                        <div id="stacksContainer" class="space-y-4">
-                            <!-- Stacks are rendered here -->
-                            <p id="emptyMessage" class="text-center text-gray-500 italic p-6 bg-card rounded-xl shadow-sm hidden">
-                                No habits found. Generate your first stack above!
-                            </p>
-                        </div>
-                    </div>
-                    
-                    <!-- AD PLACEMENT 2 (Sidebar Card Ad - FREE ONLY) -->
-                    <div class="lg:col-span-1">
-                        <div id="adCardSide" class="hidden p-6 rounded-xl shadow-lg text-center ad-container">
-                            <p class="text-xs font-semibold uppercase mb-2">Sponsored Content</p>
-                            <h3 class="font-bold text-lg mb-2">New Book: Mindset Mastery</h3>
-                            <p class="text-sm">Learn the psychological secrets to unbreakable streaks. Available now on Amazon.</p>
-                            <button class="mt-3 w-full bg-yellow-600 text-gray-900 text-sm font-semibold py-2 rounded-lg hover:bg-yellow-700 transition">
-                                Read Sample Chapter
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-    </main>
-
-    <!-- Footer -->
-    <footer class="bg-gray-800 py-6 text-center mt-10">
-        <p class="text-gray-400 text-sm">&copy; 2025 Stack & Grow. Data saved with Firebase Firestore.</p>
-    </footer>
 </body>
 </html>
 
