@@ -3,7 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stack & Grow - Dark Theme</title>
+    <!-- PRIMARY TITLE for browser tabs -->
+    <title>Habit Stacker Pro | Build Unbreakable Routines</title>
+
+    <!-- OPEN GRAPH META TAGS (FOR GOOGLE/SOCIAL PREVIEWS) -->
+    <meta property="og:title" content="Habit Stacker Pro | Build Unbreakable Routines">
+    <meta property="og:description" content="Use the power of habit stacking to transform your daily routine. Track your progress, build streaks, and go PRO!">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="https://placehold.co/1200x630/06b6d4/ffffff?text=Habit+Stacker+Pro+App">
+    <meta property="og:url" content="https://your-app-url.com">
+    <!-- END OPEN GRAPH -->
+
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -423,4 +433,321 @@
             const confirmBtn = footer.querySelector('.bg-cyan-600');
             if (confirmBtn) {
                 confirmBtn.textContent = `Pay ${PRO_PRICE} / month`; 
-                confirmBtn.classList.remove('bg-
+                confirmBtn.classList.remove('bg-cyan-600');
+                confirmBtn.classList.add('bg-yellow-500', 'hover:bg-yellow-600', 'text-gray-900', 'font-bold');
+            }
+        }
+
+        // --- UI Rendering ---
+
+        function showStackMessage(message, type) {
+            const el = document.getElementById('stackMessage');
+            el.textContent = message;
+            el.classList.remove('hidden', 'bg-red-900', 'border-red-700', 'text-red-300', 'bg-cyan-900', 'border-cyan-700', 'text-cyan-300');
+            
+            if (type === 'error') {
+                 el.classList.add('bg-red-900', 'border-red-700', 'text-red-300');
+            } else {
+                 el.classList.add('bg-cyan-900', 'border-cyan-700', 'text-cyan-300');
+            }
+            el.classList.remove('hidden');
+            setTimeout(() => el.classList.add('hidden'), 5000);
+        }
+
+
+        function renderDashboard() {
+            const isPro = window.userAccountType === 'pro';
+            const stacks = window.habitStacks || [];
+            const total = stacks.length;
+            const completed = stacks.filter(s => s.isCompleteToday).length;
+            const highestStreak = stacks.reduce((max, s) => Math.max(max, s.streakCount || 0), 0);
+
+            const dashboardSummary = document.getElementById('dashboardSummary');
+            dashboardSummary.innerHTML = `
+                <div class="bg-card p-5 rounded-xl shadow-lg border-b-4 border-cyan-500">
+                    <p class="text-xs uppercase font-semibold text-gray-400">Total Stacks</p>
+                    <p class="text-3xl font-extrabold text-cyan-400 mt-1">${total}</p>
+                </div>
+                <div class="bg-card p-5 rounded-xl shadow-lg border-b-4 border-blue-500">
+                    <p class="text-xs uppercase font-semibold text-gray-400">Completed Today</p>
+                    <p class="text-3xl font-extrabold text-blue-400 mt-1">${completed}</p>
+                </div>
+                <div class="bg-card p-5 rounded-xl shadow-lg border-b-4 border-yellow-500">
+                    <p class="text-xs uppercase font-semibold text-gray-400">Highest Streak</p>
+                    <p class="text-3xl font-extrabold text-yellow-400 mt-1">${highestStreak} ${highestStreak === 0 ? '' : '🔥'}</p>
+                </div>
+            `;
+            
+            // Apply the PRO Overlay if not PRO
+            if (!isPro) {
+                const overlay = document.createElement('div');
+                overlay.className = 'pro-overlay';
+                overlay.onclick = window.handleProToggle; // Trigger payment modal
+                overlay.innerHTML = `
+                    <div class="p-6">
+                        <p class="text-5xl text-yellow-400 mb-3" aria-hidden="true">🔒</p>
+                        <p class="text-xl font-extrabold text-white mb-2">DASHBOARD LOCKED</p>
+                        <p class="text-gray-300 font-medium">Click to unlock PRO features!</p>
+                    </div>
+                `;
+                dashboardSummary.style.position = 'relative';
+                dashboardSummary.appendChild(overlay);
+            }
+        }
+
+
+        /**
+         * Renders the list of generated habit stacks, updates dashboard metrics, and controls ad visibility.
+         */
+        window.renderStacks = function() {
+            const isPro = window.userAccountType === 'pro';
+            const sortedStacks = (window.habitStacks || []).sort((a, b) => b.createdAt - a.createdAt);
+            
+            // 1. Dashboard Update
+            renderDashboard();
+
+            // 2. Ad Visibility Control
+            if (!isPro) {
+                document.getElementById('adBannerTop').classList.remove('hidden');
+                document.getElementById('adCardSide').classList.remove('hidden');
+            } else {
+                document.getElementById('adBannerTop').classList.add('hidden');
+                document.getElementById('adCardSide').classList.add('hidden');
+            }
+
+            // 3. Gating Stack Generation
+            const generateButton = document.getElementById('generateStackButton');
+            const currentHabitInput = document.getElementById('currentHabit');
+            const newHabitInput = document.getElementById('newHabit');
+            const stackMessage = document.getElementById('stackMessage');
+            const stacksContainer = document.getElementById('stacksContainer');
+            const emptyMessage = document.getElementById('emptyMessage');
+
+            if (!isPro && sortedStacks.length >= MAX_FREE_STACKS) {
+                generateButton.disabled = true;
+                currentHabitInput.disabled = true;
+                newHabitInput.disabled = true;
+                stackMessage.classList.remove('hidden', 'bg-cyan-900', 'border-cyan-700', 'text-cyan-300');
+                stackMessage.classList.add('bg-red-900', 'border-red-700', 'text-red-300');
+                stackMessage.innerHTML = `<span class="font-bold">Upgrade to PRO!</span> Free accounts are limited to ${MAX_FREE_STACKS} stacks. Delete a stack or click the 'Go PRO' button above for more.`;
+            } else {
+                 generateButton.disabled = false;
+                 currentHabitInput.disabled = false;
+                 newHabitInput.disabled = false;
+                 // Hide warning message if it was a limit warning
+                 if (stackMessage.innerHTML.includes('Free accounts are limited')) {
+                     stackMessage.classList.add('hidden');
+                 }
+            }
+            
+            // 4. Render Stacks List
+            stacksContainer.innerHTML = '';
+            if (sortedStacks.length === 0) {
+                emptyMessage.textContent = 'No habits found. Generate your first stack above!';
+                emptyMessage.classList.remove('hidden');
+                stacksContainer.appendChild(emptyMessage);
+                return;
+            }
+            emptyMessage.classList.add('hidden');
+
+            sortedStacks.forEach(stack => {
+                const isChecked = stack.isCompleteToday;
+                const cardClass = isChecked ? 'border-green-500' : 'border-red-500';
+                const checkButtonClass = isChecked ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-600 hover:bg-gray-700';
+
+                const stackEl = document.createElement('div');
+                stackEl.className = `bg-card p-5 rounded-xl shadow-lg border-l-4 ${cardClass} flex justify-between items-center transition duration-300`;
+                stackEl.innerHTML = `
+                    <div class="flex-1 min-w-0 pr-4">
+                        <p class="text-lg font-semibold text-white">
+                            <span class="text-cyan-400">A:</span> ${stack.trigger} 
+                            <span class="text-gray-500 font-normal mx-1">→</span> 
+                            <span class="text-blue-400">B:</span> ${stack.action}
+                        </p>
+                        ${isPro ? `<p class="text-xs mt-1 text-yellow-400 font-semibold flex items-center">
+                            <svg class="w-4 h-4 mr-1 text-yellow-500" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zm-1 12H8V7h2v7zM10 6a1 1 0 100-2 1 1 0 000 2z"/></svg>
+                            Streak: ${stack.streakCount || 0} days
+                        </p>` : ''}
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <button class="toggle-check p-3 rounded-full text-white ${checkButtonClass} transition duration-150 active:scale-95" data-id="${stack.id}" aria-label="Toggle completion">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${isChecked ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'}"></path></svg>
+                        </button>
+                        <button class="delete-stack p-3 rounded-full text-gray-400 hover:text-red-400 transition duration-150 active:scale-95" data-id="${stack.id}" aria-label="Delete stack">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    </div>
+                `;
+                stacksContainer.appendChild(stackEl);
+
+                // Attach event listeners
+                stackEl.querySelector('.toggle-check').addEventListener('click', (e) => {
+                    const id = e.currentTarget.dataset.id;
+                    const stack = window.habitStacks.find(s => s.id === id);
+                    if (stack) window.toggleHabitCompletion(stack);
+                });
+
+                stackEl.querySelector('.delete-stack').addEventListener('click', (e) => {
+                     const id = e.currentTarget.dataset.id;
+                     const stack = window.habitStacks.find(s => s.id === id);
+                     showModal(
+                        'Confirm Deletion',
+                        `Are you sure you want to delete the stack: <strong>${stack.trigger} → ${stack.action}</strong>?`,
+                        () => window.deleteStackFromDB(id),
+                        true
+                    );
+                });
+            });
+        };
+
+        // --- Main Listener for Stack Generation ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const currentHabitInput = document.getElementById('currentHabit');
+            const newHabitInput = document.getElementById('newHabit');
+            const generateButton = document.getElementById('generateStackButton');
+
+            // Initial state while loading auth
+            generateButton.innerHTML = `<svg class="w-5 h-5 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 0014 4"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 20v-5h-.581m-15.357-2A8.001 8.001 0 0010 20"></path></svg>Connecting to database...`;
+
+            generateButton.addEventListener('click', async (e) => {
+                e.preventDefault();
+                const trigger = currentHabitInput.value.trim();
+                const action = newHabitInput.value.trim();
+
+                if (!trigger || !action) {
+                    showStackMessage("Please fill in both the trigger (A) and the new habit (B).", 'error');
+                    return;
+                }
+                
+                generateButton.disabled = true;
+                // addStackToDB will now check isAuthReady
+                const success = await window.addStackToDB(trigger, action); 
+                generateButton.disabled = false;
+                
+                if (success) {
+                    currentHabitInput.value = '';
+                    newHabitInput.value = '';
+                }
+            });
+        });
+    </script>
+    
+    <!-- Custom Modal Structure -->
+    <div id="customModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-black bg-opacity-75" onclick="if(event.target.id === 'customModal') closeModal()">
+        <div class="bg-card rounded-xl shadow-2xl w-full max-w-md p-6 transform transition-all duration-300 scale-100">
+            <div class="flex justify-between items-start mb-4">
+                <h3 id="modalTitle" class="text-2xl font-bold text-white">Modal Title</h3>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-white transition" aria-label="Close dialog">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div id="modalBody" class="mb-6 text-gray-300 space-y-4">
+                <!-- Content injected here -->
+            </div>
+            <div id="modalFooter" class="flex justify-end space-x-3">
+                <!-- Buttons injected here -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Header/Navigation -->
+    <header class="bg-gray-800 shadow-lg sticky top-0 z-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
+            <div class="flex items-center">
+                 <svg class="w-8 h-8 mr-2 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                <a href="#" class="text-2xl font-extrabold text-white tracking-wide">Stack & Grow</a>
+            </div>
+             <p class="text-xs text-gray-500 font-medium truncate">User ID: <span id="userIdDisplay" class="font-mono text-cyan-400">Loading...</span></p>
+        </div>
+    </header>
+
+    <main>
+        <!-- Hero & Generator Section -->
+        <section id="heroSection" class="hero-bg-free py-12 md:py-16 border-b-4 border-cyan-500 transition duration-500">
+            <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                <h1 class="text-3xl sm:text-4xl font-extrabold mb-4 text-white leading-tight drop-shadow-lg">
+                    <span id="welcomeMessage">Start Building Your Routine!</span>
+                </h1>
+                
+                <!-- PRO Toggle Button -->
+                <button id="toggleProButton" onclick="window.handleProToggle()" class="mb-8 font-bold px-6 py-2 rounded-full text-gray-900 shadow-xl transition duration-300 transform hover:scale-105 bg-yellow-500 hover:bg-yellow-600">
+                    Go PRO! Unlock Streaks for $1.00/mo (Ad-Free)
+                </button>
+                
+                <!-- Habit Stacking Tool Card -->
+                <div class="bg-card p-6 sm:p-8 rounded-3xl shadow-2xl ring-4 ring-cyan-500/20">
+                    <h2 class="text-2xl font-bold mb-6 text-white">1. Generate New Stack</h2>
+                    <div class="space-y-4 sm:space-y-6">
+                        <div>
+                            <input type="text" id="currentHabit" placeholder="A: After I finish my coffee..." class="input-style w-full px-4 py-3 rounded-xl focus:ring-1 transition duration-300 shadow-sm" required>
+                        </div>
+                        <div>
+                            <input type="text" id="newHabit" placeholder="B: I will meditate for 5 minutes." class="input-style w-full px-4 py-3 rounded-xl focus:ring-1 transition duration-300 shadow-sm" required>
+                        </div>
+                    </div>
+
+                    <!-- Button -->
+                    <button id="generateStackButton" class="mt-6 w-full sm:w-2/3 bg-cyan-600 text-white font-semibold px-8 py-3 rounded-xl shadow-lg hover:bg-cyan-700 transition duration-300 flex items-center justify-center mx-auto disabled:opacity-50 disabled:cursor-not-allowed">
+                        <!-- Content will be replaced by JS on DOMContentLoaded and onAuthStateChanged -->
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                        Generate & Start Tracking
+                    </button>
+                    
+                    <!-- Notification/Message Box -->
+                    <div id="stackMessage" class="mt-4 p-3 rounded-xl hidden text-left font-medium text-sm">
+                    </div>
+                </div>
+                
+                <!-- AD PLACEMENT 1 (Top Banner Ad - FREE ONLY) -->
+                <div id="adBannerTop" class="hidden mt-8 w-full max-w-lg mx-auto p-4 rounded-xl shadow-md text-center ad-container">
+                    <p class="text-xs font-semibold uppercase mb-1">Advertisement</p>
+                    <p class="text-sm font-bold">🎯 Boost Your Productivity with the 'FocusFlow' App!</p>
+                    <p class="text-xs mt-1">Click here to get 30% off your first month.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Stacks List and Tracking Dashboard -->
+        <section id="myStacks" class="py-12 md:py-16">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                
+                <h2 class="text-3xl font-bold mb-6 text-white">2. Tracking Dashboard</h2>
+                <div id="dashboardSummary" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10 relative">
+                    <!-- Metrics will be inserted here by renderDashboard() -->
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                    <!-- Habit Checklist (Main Content) -->
+                    <div class="lg:col-span-3">
+                        <h2 class="text-3xl font-bold mb-6 text-white">3. Daily Habit Checklist</h2>
+                        <div id="stacksContainer" class="space-y-4">
+                            <!-- Stacks are rendered here -->
+                            <p id="emptyMessage" class="text-center text-gray-500 italic p-6 bg-card rounded-xl shadow-sm hidden">
+                                No habits found. Generate your first stack above!
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <!-- AD PLACEMENT 2 (Sidebar Card Ad - FREE ONLY) -->
+                    <div class="lg:col-span-1">
+                        <div id="adCardSide" class="hidden p-6 rounded-xl shadow-lg text-center ad-container">
+                            <p class="text-xs font-semibold uppercase mb-2">Sponsored Content</p>
+                            <h3 class="font-bold text-lg mb-2">New Book: Mindset Mastery</h3>
+                            <p class="text-sm">Learn the psychological secrets to unbreakable streaks. Available now on Amazon.</p>
+                            <button class="mt-3 w-full bg-yellow-600 text-gray-900 text-sm font-semibold py-2 rounded-lg hover:bg-yellow-700 transition">
+                                Read Sample Chapter
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 py-6 text-center mt-10">
+        <p class="text-gray-400 text-sm">&copy; 2025 Stack & Grow. Data saved with Firebase Firestore.</p>
+    </footer>
+</body>
+</html>
+
