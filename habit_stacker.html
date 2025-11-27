@@ -45,12 +45,13 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: rgba(17, 24, 39, 0.9); /* Dark overlay with high opacity */
-            backdrop-filter: blur(4px);
+            /* Increased opacity to make the lock more visible */
+            background: rgba(17, 24, 39, 0.95); /* Dark overlay with high opacity */
             border-radius: 0.75rem;
             text-align: center;
             z-index: 10;
             cursor: pointer;
+            transition: opacity 0.3s;
         }
 
         /* Dark Theme Ad Container */
@@ -146,7 +147,7 @@
                     userIdDisplay.textContent = userId;
                     generateButton.innerHTML = `<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>Generate & Start Tracking`;
                     
-                    await loadUserAccountType(); // Load status first
+                    await loadUserAccountType(); // Load status first (calls renderApp)
                     startHabitListener(); // Then start listening for stacks
                 } else {
                     try {
@@ -162,10 +163,9 @@
                     } finally {
                          // IMPORTANT: Always set isAuthReady to true once the attempt is made
                         isAuthReady = true; 
-                        if (!userId) {
-                            // If sign-in failed, still update button state to indicate readiness
-                            generateButton.innerHTML = `<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>Generate & Start Tracking`;
-                        }
+                        // Update button and app status even if sign-in failed/anonymous
+                        generateButton.innerHTML = `<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>Generate & Start Tracking`;
+                        renderApp(); 
                     }
                 }
             });
@@ -203,7 +203,7 @@
                     window.userAccountType = 'free';
                 }
                 updateAppTheme();
-                window.renderStacks(); // Ensure rendering happens after auth
+                renderApp(); // Rerender after account type is confirmed
             } catch (error) {
                 console.error("Error loading account type:", error);
             }
@@ -223,7 +223,7 @@
                 await setDoc(docRef, { accountType: 'pro' }, { merge: true });
                 window.userAccountType = 'pro';
                 updateAppTheme();
-                window.renderStacks();
+                renderApp();
                 showModal('PRO UNLOCKED!', `<p class="text-green-400 font-bold">Thank you for subscribing!</p><p>You now have unlimited stacks, streak tracking, and an ad-free experience for only ${PRO_PRICE}/month.</p>`, null, false);
             } catch (error) {
                 showModal('Error', `Failed to update PRO status: ${error.message}`);
@@ -244,7 +244,7 @@
                 await setDoc(docRef, { accountType: 'free' }, { merge: true });
                 window.userAccountType = 'free';
                 updateAppTheme();
-                window.renderStacks();
+                renderApp();
                 showModal('Downgraded to Free', '<p class="text-yellow-400 font-bold">You are now on the Free tier.</p><p>You may encounter advertisements and are limited to 5 stacks.</p>', null, false);
             } catch (error) {
                 showModal('Error', `Failed to downgrade status: ${error.message}`);
@@ -298,7 +298,7 @@
                     fetchedStacks.push({ id: doc.id, ...doc.data() });
                 });
                 window.habitStacks = fetchedStacks; 
-                window.renderStacks(); 
+                renderApp(); 
             }, (error) => {
                 console.error("Error listening to stacks:", error);
             });
@@ -306,7 +306,6 @@
 
         /**
          * Adds a new stack to Firestore. Check for limits first.
-         * ADDED SAFETY CHECK HERE: if (!isAuthReady || !db || !auth.currentUser)
          */
         window.addStackToDB = async (trigger, action) => {
             if (!isAuthReady || !db || !auth.currentUser) {
@@ -366,16 +365,19 @@
             if (newIsCompleteToday) {
                 const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
                 
+                // Check if streak can continue (completed yesterday or first time today)
                 if (stack.lastCompletedDate === yesterday || stack.lastCompletedDate === null) {
                     newStreak++;
                 } else if (stack.lastCompletedDate !== today) {
+                    // Start new streak if missed a day
                     newStreak = 1;
                 }
                 newLastCompletedDate = today;
 
             } else {
+                // If unchecking, and it was completed today, reset streak (this is simplistic)
                 if (stack.lastCompletedDate === today) {
-                    newStreak = Math.max(0, newStreak - 1);
+                    newStreak = Math.max(0, newStreak - 1); // Decrement streak count
                     newLastCompletedDate = null;
                 }
             }
@@ -454,56 +456,93 @@
             setTimeout(() => el.classList.add('hidden'), 5000);
         }
 
-
         function renderDashboard() {
             const isPro = window.userAccountType === 'pro';
+            const isConnecting = !isAuthReady;
             const stacks = window.habitStacks || [];
             const total = stacks.length;
             const completed = stacks.filter(s => s.isCompleteToday).length;
             const highestStreak = stacks.reduce((max, s) => Math.max(max, s.streakCount || 0), 0);
 
             const dashboardSummary = document.getElementById('dashboardSummary');
+            
+            // Always render the base metric cards
             dashboardSummary.innerHTML = `
-                <div class="bg-card p-5 rounded-xl shadow-lg border-b-4 border-cyan-500">
+                <div class="metric-card bg-card p-5 rounded-xl shadow-lg border-b-4 border-cyan-500">
                     <p class="text-xs uppercase font-semibold text-gray-400">Total Stacks</p>
                     <p class="text-3xl font-extrabold text-cyan-400 mt-1">${total}</p>
                 </div>
-                <div class="bg-card p-5 rounded-xl shadow-lg border-b-4 border-blue-500">
+                <div class="metric-card bg-card p-5 rounded-xl shadow-lg border-b-4 border-blue-500">
                     <p class="text-xs uppercase font-semibold text-gray-400">Completed Today</p>
                     <p class="text-3xl font-extrabold text-blue-400 mt-1">${completed}</p>
                 </div>
-                <div class="bg-card p-5 rounded-xl shadow-lg border-b-4 border-yellow-500">
+                <div class="metric-card bg-card p-5 rounded-xl shadow-lg border-b-4 border-yellow-500">
                     <p class="text-xs uppercase font-semibold text-gray-400">Highest Streak</p>
                     <p class="text-3xl font-extrabold text-yellow-400 mt-1">${highestStreak} ${highestStreak === 0 ? '' : '🔥'}</p>
                 </div>
             `;
             
-            // Apply the PRO Overlay if not PRO
-            if (!isPro) {
+            // Apply the PRO Overlay if not PRO OR if still connecting
+            if (!isPro || isConnecting) {
+                let lockHtml = '';
+                let cursorStyle = 'cursor-pointer';
+                let overlayClass = 'pro-overlay';
+                let clickAction = window.handleProToggle;
+
+                if (isConnecting) {
+                    // Show connecting/loading state
+                    lockHtml = `
+                        <div class="p-6">
+                            <p class="text-5xl text-gray-400 mb-3" aria-hidden="true">⏳</p>
+                            <p class="text-xl font-extrabold text-white mb-2">LOADING DASHBOARD</p>
+                            <p class="text-gray-300 font-medium">Connecting to database...</p>
+                        </div>
+                    `;
+                    clickAction = null; // No action on click while loading
+                    cursorStyle = 'cursor-default';
+                } else {
+                    // Show PRO lock state
+                    lockHtml = `
+                        <div class="p-6">
+                            <p class="text-5xl text-yellow-400 mb-3" aria-hidden="true">🔒</p>
+                            <p class="text-xl font-extrabold text-white mb-2">DASHBOARD LOCKED</p>
+                            <p class="text-gray-300 font-medium">Click to unlock PRO features!</p>
+                        </div>
+                    `;
+                }
+
                 const overlay = document.createElement('div');
-                overlay.className = 'pro-overlay';
-                overlay.onclick = window.handleProToggle; // Trigger payment modal
-                overlay.innerHTML = `
-                    <div class="p-6">
-                        <p class="text-5xl text-yellow-400 mb-3" aria-hidden="true">🔒</p>
-                        <p class="text-xl font-extrabold text-white mb-2">DASHBOARD LOCKED</p>
-                        <p class="text-gray-300 font-medium">Click to unlock PRO features!</p>
-                    </div>
-                `;
+                overlay.className = `${overlayClass} ${cursorStyle}`;
+                overlay.onclick = clickAction; 
+                overlay.innerHTML = lockHtml;
+
                 dashboardSummary.style.position = 'relative';
                 dashboardSummary.appendChild(overlay);
+                
+                // Explicitly blur the underlying content for better visual effect
+                Array.from(dashboardSummary.children).forEach(child => {
+                    if (child !== overlay) {
+                        child.classList.add('filter', 'blur-sm', 'opacity-50');
+                    }
+                });
+
+            } else {
+                // Ensure no blur or overlay exists if user is PRO
+                Array.from(dashboardSummary.children).forEach(child => {
+                    child.classList.remove('filter', 'blur-sm', 'opacity-50');
+                });
             }
         }
 
 
         /**
-         * Renders the list of generated habit stacks, updates dashboard metrics, and controls ad visibility.
+         * Renders the entire app view (stacks list, dashboard, ads)
          */
-        window.renderStacks = function() {
+        window.renderApp = function() {
             const isPro = window.userAccountType === 'pro';
             const sortedStacks = (window.habitStacks || []).sort((a, b) => b.createdAt - a.createdAt);
             
-            // 1. Dashboard Update
+            // 1. Dashboard Update (Handles loading/locking state)
             renderDashboard();
 
             // 2. Ad Visibility Control
@@ -605,9 +644,15 @@
             const currentHabitInput = document.getElementById('currentHabit');
             const newHabitInput = document.getElementById('newHabit');
             const generateButton = document.getElementById('generateStackButton');
+            const userIdDisplay = document.getElementById('userIdDisplay');
 
-            // Initial state while loading auth
+            // 1. Initial Render: Show loading state for the dashboard immediately
+            renderDashboard();
+
+            // 2. Initial state while loading auth
             generateButton.innerHTML = `<svg class="w-5 h-5 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 0014 4"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 20v-5h-.581m-15.357-2A8.001 8.001 0 0010 20"></path></svg>Connecting to database...`;
+            userIdDisplay.textContent = 'Connecting...';
+
 
             generateButton.addEventListener('click', async (e) => {
                 e.preventDefault();
@@ -620,7 +665,6 @@
                 }
                 
                 generateButton.disabled = true;
-                // addStackToDB will now check isAuthReady
                 const success = await window.addStackToDB(trigger, action); 
                 generateButton.disabled = false;
                 
@@ -657,7 +701,7 @@
                  <svg class="w-8 h-8 mr-2 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                 <a href="#" class="text-2xl font-extrabold text-white tracking-wide">Stack & Grow</a>
             </div>
-             <p class="text-xs text-gray-500 font-medium truncate">User ID: <span id="userIdDisplay" class="font-mono text-cyan-400">Loading...</span></p>
+             <p class="text-xs text-gray-500 font-medium truncate">User ID: <span id="userIdDisplay" class="font-mono text-cyan-400">Connecting...</span></p>
         </div>
     </header>
 
@@ -689,8 +733,7 @@
                     <!-- Button -->
                     <button id="generateStackButton" class="mt-6 w-full sm:w-2/3 bg-cyan-600 text-white font-semibold px-8 py-3 rounded-xl shadow-lg hover:bg-cyan-700 transition duration-300 flex items-center justify-center mx-auto disabled:opacity-50 disabled:cursor-not-allowed">
                         <!-- Content will be replaced by JS on DOMContentLoaded and onAuthStateChanged -->
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
-                        Generate & Start Tracking
+                        Connecting to database...
                     </button>
                     
                     <!-- Notification/Message Box -->
